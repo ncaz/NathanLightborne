@@ -29,7 +29,7 @@ impl Plugin for CameraPlugin {
         app.add_event::<CameraMoveEvent>()
             .add_event::<CameraZoomEvent>()
             .add_event::<CameraTransitionEvent>()
-            .add_systems(Startup, setup_camera)
+            .add_systems(Startup, (setup_transition_camera, setup_camera))
             .add_systems(
                 FixedUpdate,
                 move_camera
@@ -41,15 +41,16 @@ impl Plugin for CameraPlugin {
             .add_systems(
                 Update,
                 (
-                    (
-                        (handle_zoom_camera, handle_move_camera),
-                        apply_camera_snapping,
-                    )
+                    (handle_zoom_camera, handle_move_camera)
                         .chain()
                         .after(move_camera)
                         .after(switch_level),
                     handle_transition_camera,
                 ),
+            )
+            .add_systems(
+                PostUpdate,
+                apply_camera_snapping.before(TransformSystem::TransformPropagate),
             );
     }
 }
@@ -78,6 +79,9 @@ pub const HIGHRES_LAYER: RenderLayers = RenderLayers::layer(2);
 pub const TRANSITION_LAYER: RenderLayers = RenderLayers::layer(5);
 
 #[derive(Component)]
+pub struct PlayerCamera;
+
+#[derive(Component)]
 pub struct TransitionCamera;
 
 #[derive(Component)]
@@ -85,32 +89,42 @@ pub struct TransitionMeshMarker;
 
 #[derive(Component)]
 #[require(Transform)]
-pub struct CameraPixelOffset(Vec2);
+pub struct PixelPerfectCamera {
+    pub snap_entity: Entity,
+}
 
 pub fn apply_camera_snapping(
     q_camera: Query<&Transform, With<MainCamera>>,
-    mut q_match_camera: Query<(&mut Transform, &mut CameraPixelOffset), Without<MainCamera>>,
+    mut q_transform: ParamSet<(TransformHelper, Query<&mut Transform, Without<MainCamera>>)>,
+    q_match_camera: Query<(Entity, &PixelPerfectCamera)>,
 ) {
     let Ok(main_camera_transform) = q_camera.get_single() else {
         return;
     };
-    for (mut transform, mut pixel_offset) in q_match_camera.iter_mut() {
-        pixel_offset.0 =
-            (main_camera_transform.translation.round() - main_camera_transform.translation).xy();
-        transform.translation = pixel_offset.0.extend(transform.translation.z);
+    for (camera_entity, pixel_offset) in q_match_camera.iter() {
+        let Ok(snap_transform) = q_transform
+            .p0()
+            .compute_global_transform(pixel_offset.snap_entity)
+        else {
+            continue;
+        };
+
+        let snap_to_vec =
+            main_camera_transform.translation - snap_transform.compute_transform().translation;
+        let move_vec = (snap_to_vec.round() - snap_to_vec).xy();
+
+        let mut helper = q_transform.p1();
+        let Ok(mut transform) = helper.get_mut(camera_entity) else {
+            continue;
+        };
+        transform.translation = move_vec.extend(transform.translation.z);
     }
 }
 
-/// [`Startup`] [`System`] that spawns the [`Camera2d`] in the world.
-///
-/// Notes:
-/// - Spawns the camera with [`OrthographicProjection`] with fixed scaling at 320x180
-pub fn setup_camera(
+pub fn setup_transition_camera(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
-    mut images: ResMut<Assets<Image>>,
-    asset_server: Res<AssetServer>,
 ) {
     let projection = OrthographicProjection {
         scaling_mode: ScalingMode::Fixed {
@@ -142,6 +156,24 @@ pub fn setup_camera(
         TransitionMeshMarker,
         TRANSITION_LAYER,
     ));
+}
+
+/// [`Startup`] [`System`] that spawns the [`Camera2d`] in the world.
+///
+/// Notes:
+/// - Spawns the camera with [`OrthographicProjection`] with fixed scaling at 320x180
+pub fn setup_camera(
+    mut commands: Commands,
+    mut images: ResMut<Assets<Image>>,
+    asset_server: Res<AssetServer>,
+) {
+    let projection = OrthographicProjection {
+        scaling_mode: ScalingMode::Fixed {
+            width: CAMERA_WIDTH as f32,
+            height: CAMERA_HEIGHT as f32,
+        },
+        ..OrthographicProjection::default_2d()
+    };
 
     let main_camera = commands
         .spawn((
@@ -194,6 +226,9 @@ pub fn setup_camera(
         ..OrthographicProjection::default_2d()
     };
 
+    // spawn a dummy entity so that cameras can snap to 0
+    let origin_entity = commands.spawn(Transform::default()).id();
+
     commands.entity(main_camera).with_children(|child| {
         child
             .spawn((
@@ -209,7 +244,9 @@ pub fn setup_camera(
                     ..default()
                 },
                 Tonemapping::TonyMcMapface,
-                CameraPixelOffset(Vec2::ZERO),
+                PixelPerfectCamera {
+                    snap_entity: origin_entity,
+                },
                 pixel_projection.clone(),
                 Transform::default(),
                 TERRAIN_LAYER,
@@ -219,6 +256,7 @@ pub fn setup_camera(
         child
             .spawn((
                 Camera2d,
+                PlayerCamera,
                 Camera {
                     hdr: true,
                     order: 0,
@@ -227,7 +265,7 @@ pub fn setup_camera(
                     ..default()
                 },
                 Tonemapping::TonyMcMapface,
-                CameraPixelOffset(Vec2::ZERO),
+                // NOTE: add the pixel perfect camera later, once the player has actually spawned
                 pixel_projection.clone(),
                 Transform::default(),
                 LYRA_LAYER,

@@ -3,7 +3,10 @@ use bevy_ecs_ldtk::prelude::*;
 use bevy_rapier2d::prelude::*;
 
 use crate::{
-    animation::AnimationConfig, camera::LYRA_LAYER, lighting::LineLight2d, shared::GroupLabel,
+    animation::AnimationConfig,
+    camera::{PixelPerfectCamera, PlayerCamera, LYRA_LAYER},
+    lighting::LineLight2d,
+    shared::GroupLabel,
 };
 
 use super::{
@@ -54,12 +57,14 @@ pub fn init_player_bundle(_: &EntityInstance) -> PlayerBundle {
 pub fn update_player_entity(
     mut commands: Commands,
     q_player: Query<Entity, Added<PlayerMarker>>,
+    q_player_camera: Query<Entity, With<PlayerCamera>>,
     asset_server: Res<AssetServer>,
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
 ) {
     let Ok(player) = q_player.get_single() else {
         return;
     };
+    let player_camera = q_player_camera.single();
 
     let texture_atlas_layout = texture_atlas_layouts.add(TextureAtlasLayout::from_grid(
         UVec2::new(15, 20),
@@ -68,6 +73,10 @@ pub fn update_player_entity(
         None,
         None,
     ));
+
+    commands.entity(player_camera).insert(PixelPerfectCamera {
+        snap_entity: player,
+    });
 
     // insert sprite here because it depends on texture atlas which needs a resource
     commands.entity(player).insert((
