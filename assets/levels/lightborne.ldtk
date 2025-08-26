@@ -24062,9 +24062,9 @@
 					"params": ["Purple"]
 				} ] },
 				{ "__identifier": "LevelName", "__type": "String", "__value": "", "__tile": null, "defUid": 1365, "realEditorValues": [] },
-				{ "__identifier": "LevelId", "__type": "String", "__value": "2H", "__tile": null, "defUid": 1366, "realEditorValues": [{
+				{ "__identifier": "LevelId", "__type": "String", "__value": "2G", "__tile": null, "defUid": 1366, "realEditorValues": [{
 					"id": "V_String",
-					"params": ["2H"]
+					"params": ["2G"]
 				}] }
 			],
 			"layerInstances": [
