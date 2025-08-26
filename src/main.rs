@@ -15,10 +15,7 @@ use particle::ParticlePlugin;
 use player::PlayerManagementPlugin;
 use shared::{AnimationState, GameState, ResetLevel, UiState};
 use sound::SoundPlugin;
-use ui::level_select::LevelSelectPlugin;
-use ui::pause::PausePlugin;
-use ui::settings::SettingsPlugin;
-use ui::start_menu::StartMenuPlugin;
+use ui::UiPlugin;
 
 mod animation;
 mod camera;
@@ -77,11 +74,8 @@ fn main() {
         .add_plugins(LightManagementPlugin)
         .add_plugins(SoundPlugin)
         .add_plugins(ParticlePlugin)
-        .add_plugins(PausePlugin)
-        .add_plugins(StartMenuPlugin)
-        .add_plugins(LevelSelectPlugin)
-        .add_plugins(SettingsPlugin)
         .add_plugins(CameraPlugin)
+        .add_plugins(UiPlugin)
         .add_plugins(DebugPlugin::default())
         .insert_state(GameState::Ui)
         .add_sub_state::<UiState>()

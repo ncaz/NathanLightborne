@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use bevy_ecs_ldtk::prelude::*;
 use bevy_rapier2d::prelude::*;
 use match_player::update_match_player_z;
+use restart_hint::HintRestartPlugin;
 use strand::PlayerStrandPlugin;
 
 use crate::{animation::AnimationConfig, level::LevelSystems};
@@ -17,6 +18,7 @@ pub mod kill;
 pub mod light;
 pub mod match_player;
 pub mod movement;
+mod restart_hint;
 mod spawn;
 mod strand;
 
@@ -29,6 +31,7 @@ impl Plugin for PlayerManagementPlugin {
             .add_plugins(PlayerMovementPlugin)
             .add_plugins(PlayerKillPlugin)
             .add_plugins(PlayerStrandPlugin)
+            .add_plugins(HintRestartPlugin)
             .add_systems(
                 PreUpdate,
                 update_player_entity.in_set(LevelSystems::Processing),
