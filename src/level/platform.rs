@@ -379,7 +379,7 @@ pub struct MovingPlatformBundle {
 }
 
 pub fn platform_line_light(_: &EntityInstance) -> LineLight2d {
-    return LineLight2d {
+    LineLight2d {
         color: Vec4::new(0.5, 1.0, 0.5, 1.0),
         half_length: 9.,
         radius: 30.,

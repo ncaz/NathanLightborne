@@ -49,7 +49,7 @@ fn follow_ws_position_targets(
             continue;
         };
         // Convert physical pixels -> logical UI units.
-        p *= window.scale_factor() as f32;
+        p *= window.scale_factor();
 
         t.translation = p.extend(t.translation.z);
     }

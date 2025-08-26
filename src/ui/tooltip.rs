@@ -1,6 +1,6 @@
 use bevy::{ecs::system::SystemParam, prelude::*};
 
-use crate::{player::kill::KillPlayerEvent, shared::ResetLevel};
+use crate::shared::ResetLevel;
 
 use super::follow::WorldSpacePositionTarget;
 
@@ -18,8 +18,8 @@ pub struct Tooltip;
 #[derive(Component)]
 pub enum TooltipDespawnSetting {
     // Despawns a certain time after being shown
-    Time(Timer),
-    PlayerKill,
+    // Time(Timer),
+    // PlayerKill,
     LevelSwitch,
     None,
 }
@@ -28,26 +28,26 @@ pub fn handle_tooltip_despawns(
     mut commands: Commands,
     mut q_tooltips: Query<(Entity, &mut TooltipDespawnSetting)>,
     mut ev_level_switch: EventReader<ResetLevel>,
-    mut ev_kill_player: EventReader<KillPlayerEvent>,
-    time: Res<Time>,
+    // mut ev_kill_player: EventReader<KillPlayerEvent>,
+    // time: Res<Time>,
 ) {
-    let player_killed = ev_kill_player.read().count() > 0;
+    // let player_killed = ev_kill_player.read().count() > 0;
     let level_switched = ev_level_switch.read().count() > 0;
 
     for (tooltip, mut tooltip_despawn) in q_tooltips.iter_mut() {
         let tooltip_despawn = &mut *tooltip_despawn;
         match tooltip_despawn {
-            TooltipDespawnSetting::Time(timer) => {
-                timer.tick(time.delta());
-                if timer.just_finished() {
-                    commands.entity(tooltip).despawn_recursive();
-                }
-            }
-            TooltipDespawnSetting::PlayerKill => {
-                if player_killed {
-                    commands.entity(tooltip).despawn_recursive();
-                }
-            }
+            // TooltipDespawnSetting::Time(timer) => {
+            //     timer.tick(time.delta());
+            //     if timer.just_finished() {
+            //         commands.entity(tooltip).despawn_recursive();
+            //     }
+            // }
+            // TooltipDespawnSetting::PlayerKill => {
+            //     if player_killed {
+            //         commands.entity(tooltip).despawn_recursive();
+            //     }
+            // }
             TooltipDespawnSetting::LevelSwitch => {
                 if level_switched {
                     commands.entity(tooltip).despawn_recursive();
