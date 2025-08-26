@@ -9,6 +9,10 @@ use bevy_ecs_ldtk::prelude::LdtkFields;
 use bevy_ecs_ldtk::LevelIid;
 use bevy_ecs_ldtk::{prelude::LdtkProject, LdtkProjectHandle};
 
+use image as img;
+use std::fs;
+use std::path::Path;
+
 use crate::camera::{camera_position_from_level, CameraControlType, CameraMoveEvent};
 use crate::config::Config;
 use crate::level::start_flag::StartFlag;
@@ -140,6 +144,10 @@ impl Plugin for LevelSelectPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(LevelPreviewStore(HashMap::new()))
             .insert_resource(Levels(Vec::new()))
+            // .add_systems(
+            //     OnEnter(UiState::LevelSelect),
+            //     dump_all_level_previews_to_png,
+            // )
             .add_systems(
                 Update,
                 (
@@ -291,6 +299,138 @@ fn despawn_level_select(
     commands.entity(entity).despawn_recursive();
 }
 
+fn ensure_level_preview_image(
+    level: &bevy_ecs_ldtk::ldtk::Level,
+    level_preview_store: &mut LevelPreviewStore,
+    assets: &mut Assets<Image>,
+) -> (Vec2, Handle<Image>) {
+    let level_id = level
+        .get_string_field("LevelId")
+        .expect("Levels should always have a level id!");
+    if let Some((dims, handle)) = level_preview_store.0.get(level_id) {
+        return (*dims, handle.clone());
+    }
+
+    let level_layers = level.layer_instances.as_ref().expect("Layers not found!");
+    let (layer_w, layer_h, layer_data) = level_layers
+        .iter()
+        .find_map(|layer| {
+            if layer.identifier == TERRAIN_LAYER_IDENT {
+                Some((
+                    layer.c_wid as usize,
+                    layer.c_hei as usize,
+                    &layer.int_grid_csv,
+                ))
+            } else {
+                None
+            }
+        })
+        .expect("Terrain layer data not found!");
+    let level_entities = level_layers
+        .iter()
+        .find_map(|layer| {
+            if layer.identifier == ENTITY_LAYER_IDENT {
+                Some(&layer.entity_instances)
+            } else {
+                None
+            }
+        })
+        .expect("Entity layer data not found!");
+
+    let pixel_size = TextureFormat::bevy_default().pixel_size(); // should be 4 (RGBA8)
+    let mut level_preview_data = Vec::with_capacity(layer_w * layer_h * pixel_size);
+
+    for tile in layer_data {
+        for i in 0..pixel_size {
+            level_preview_data.push(LEVEL_PREVIEW_COLORS[*tile as usize][i]);
+        }
+    }
+
+    for entity in level_entities {
+        if entity.identifier != SENSOR_ENTITY_IDENT {
+            continue;
+        }
+        let entity_coords = entity.grid;
+        let entity_color = entity
+            .field_instances
+            .iter()
+            .find_map(|instance| {
+                if instance.identifier == SENSOR_COLOR_IDENT {
+                    if let FieldValue::Enum(Some(ref color)) = instance.value {
+                        Some(color)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            })
+            .expect("Could not find sensor color field!");
+        let rgba = sensor_color_to_rgba(entity_color);
+        let idx = (entity_coords.y as usize * layer_w + entity_coords.x as usize) * pixel_size;
+        level_preview_data[idx..idx + pixel_size].copy_from_slice(&rgba[..pixel_size]);
+    }
+
+    let preview = Image::new(
+        Extent3d {
+            width: layer_w as u32,
+            height: layer_h as u32,
+            depth_or_array_layers: 1,
+        },
+        TextureDimension::D2,
+        level_preview_data,
+        TextureFormat::bevy_default(), // RGBA8 sRGB
+        RenderAssetUsages::RENDER_WORLD | RenderAssetUsages::MAIN_WORLD,
+    );
+
+    let handle = assets.add(preview);
+    let dims = Vec2::new(layer_w as f32, layer_h as f32);
+    level_preview_store
+        .0
+        .insert(level_id.to_string(), (dims, handle.clone()));
+    (dims, handle)
+}
+
+#[allow(dead_code)]
+fn dump_all_level_previews_to_png(
+    mut level_preview_store: ResMut<LevelPreviewStore>,
+    ldtk_assets: Res<Assets<LdtkProject>>,
+    query_ldtk: Query<&LdtkProjectHandle>,
+    res_levels: Res<Levels>,
+    mut assets: ResMut<Assets<Image>>,
+) {
+    let Ok(ldtk_handle) = query_ldtk.get_single() else {
+        return;
+    };
+    let Ok(ldtk_levels) = get_ldtk_level_data(ldtk_assets.into_inner(), ldtk_handle) else {
+        return;
+    };
+
+    // Create output folder
+    let _ = fs::create_dir_all("level_previews");
+
+    for save in &res_levels.0 {
+        let level = &ldtk_levels[save.level_index];
+
+        let (_dims, handle) =
+            ensure_level_preview_image(level, &mut level_preview_store, &mut assets);
+        if let Some(img_asset) = assets.get(&handle) {
+            let size = img_asset.texture_descriptor.size;
+            let (w, h) = (size.width, size.height);
+            let path = format!("level_previews/{}.png", save.level_id);
+
+            let _ = img::save_buffer_with_format(
+                Path::new(&path),
+                &img_asset.data,
+                w,
+                h,
+                img::ColorType::Rgba8,
+                img::ImageFormat::Png,
+            );
+        }
+    }
+}
+
 #[allow(clippy::type_complexity)]
 #[allow(clippy::too_many_arguments)]
 pub fn handle_level_selection(
@@ -380,91 +520,8 @@ pub fn handle_level_selection(
                 break 'loop_interactions;
             }
             Interaction::Hovered => {
-                let level_id = level
-                    .get_string_field("LevelId")
-                    .expect("Levels should always have a level id!");
-                let (level_dims, level_preview) = match level_preview_store.0.get(level_id) {
-                    Some(level_preview) => level_preview.clone(),
-                    None => {
-                        let level_layers =
-                            level.layer_instances.as_ref().expect("Layers not found!");
-                        let Some((layer_w, layer_h, layer_data)) =
-                            level_layers.iter().find_map(|layer| {
-                                if layer.identifier == TERRAIN_LAYER_IDENT {
-                                    Some((
-                                        layer.c_wid as usize,
-                                        layer.c_hei as usize,
-                                        &layer.int_grid_csv,
-                                    ))
-                                } else {
-                                    None
-                                }
-                            })
-                        else {
-                            panic!("Terrain layer data not found!");
-                        };
-                        let Some(level_entities) = level_layers.iter().find_map(|layer| {
-                            if layer.identifier == ENTITY_LAYER_IDENT {
-                                Some(&layer.entity_instances)
-                            } else {
-                                None
-                            }
-                        }) else {
-                            panic!("Entity layer data not found!");
-                        };
-                        let mut level_preview_data = Vec::with_capacity(layer_w * layer_h);
-                        let pixel_size = TextureFormat::bevy_default().pixel_size();
-                        for tile in layer_data {
-                            for i in 0..pixel_size {
-                                level_preview_data.push(LEVEL_PREVIEW_COLORS[*tile as usize][i]);
-                            }
-                        }
-                        for entity in level_entities {
-                            if entity.identifier != SENSOR_ENTITY_IDENT {
-                                continue;
-                            }
-                            let entity_coords = entity.grid;
-                            let Some(entity_color) =
-                                entity.field_instances.iter().find_map(|instance| {
-                                    if instance.identifier == SENSOR_COLOR_IDENT {
-                                        let FieldValue::Enum(Some(ref color)) = instance.value
-                                        else {
-                                            panic!("Sensor color should be an enum!");
-                                        };
-                                        Some(color)
-                                    } else {
-                                        None
-                                    }
-                                })
-                            else {
-                                panic!("Could not find sensor color field!");
-                            };
-                            let rgba = sensor_color_to_rgba(entity_color);
-                            let image_data_index = (entity_coords.y as usize * layer_w
-                                + entity_coords.x as usize)
-                                * pixel_size;
-                            level_preview_data[image_data_index..(pixel_size + image_data_index)]
-                                .copy_from_slice(&rgba[..pixel_size]);
-                        }
-                        let preview = Image::new(
-                            Extent3d {
-                                width: layer_w as u32,
-                                height: layer_h as u32,
-                                depth_or_array_layers: 1,
-                            },
-                            TextureDimension::D2,
-                            level_preview_data,
-                            TextureFormat::bevy_default(),
-                            RenderAssetUsages::RENDER_WORLD | RenderAssetUsages::MAIN_WORLD,
-                        );
-                        let new_handle = assets.add(preview);
-                        let level_dims = Vec2::new(layer_w as f32, layer_h as f32);
-                        level_preview_store
-                            .0
-                            .insert(level_id.into(), (level_dims, new_handle.clone()));
-                        (level_dims, new_handle)
-                    }
-                };
+                let (level_dims, level_preview) =
+                    ensure_level_preview_image(level, &mut level_preview_store, &mut assets);
                 let Ok((level_preview_entity, level_preview_nodes)) =
                     query_level_preview.get_single_mut()
                 else {

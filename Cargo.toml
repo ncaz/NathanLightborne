@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+image = { version = "0.24", default-features = false, features = ["png"] }
 bevy = { version = "0.15.0", features = ["wav", "mp3", "serialize"] }
 bevy-inspector-egui = "0.29.1"
 bevy_ecs_ldtk = "0.11.0"
