@@ -13,6 +13,7 @@ use semisolid::SemiSolidPlugin;
 use sensor::LightSensorPlugin;
 use shard::CrystalShardPlugin;
 use speedrun::SpeedrunTimerPlugin;
+use tooltip_sign::TooltipSignPlugin;
 
 use crate::{
     camera::{
@@ -46,6 +47,7 @@ mod setup;
 pub mod shard;
 pub mod speedrun;
 pub mod start_flag;
+mod tooltip_sign;
 mod walls;
 
 /// [`Plugin`] that handles everything related to the level.
@@ -66,6 +68,7 @@ impl Plugin for LevelManagementPlugin {
             .add_plugins(DecorationPlugin)
             .add_plugins(CrucieraPlugin)
             .add_plugins(SpeedrunTimerPlugin)
+            .add_plugins(TooltipSignPlugin)
             .init_resource::<CurrentLevel>()
             .register_ldtk_entity::<LdtkPlayerBundle>("Lyra")
             .register_ldtk_entity::<StartFlagBundle>("Start")

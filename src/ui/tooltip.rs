@@ -21,6 +21,7 @@ pub enum TooltipDespawnSetting {
     Time(Timer),
     PlayerKill,
     LevelSwitch,
+    None,
 }
 
 pub fn handle_tooltip_despawns(
@@ -52,6 +53,7 @@ pub fn handle_tooltip_despawns(
                     commands.entity(tooltip).despawn_recursive();
                 }
             }
+            TooltipDespawnSetting::None => (),
         }
     }
 }
@@ -75,15 +77,20 @@ impl TooltipSpawner<'_, '_> {
             font_size: 18.0,
             ..default()
         };
-
         self.commands
             .spawn((
                 Node {
                     max_width: Val::Vw(20.),
+                    padding: UiRect::all(Val::Px(12.)),
+                    display: Display::Flex,
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    position_type: PositionType::Absolute,
+                    border: UiRect::all(Val::Px(2.0)),
                     ..default()
                 },
-                Text::new(tooltip),
-                font,
+                BackgroundColor(Color::srgba(0., 0., 0., 0.5)),
+                BorderColor(Color::srgba(1., 1., 1., 0.7)),
                 Tooltip,
                 WorldSpacePositionTarget {
                     target: on_entity,
@@ -91,6 +98,14 @@ impl TooltipSpawner<'_, '_> {
                 },
                 despawn,
             ))
+            .with_children(|parent| {
+                parent.spawn((
+                    Text::new(tooltip.into()),
+                    font.clone(),
+                    TextColor(Color::srgba(1., 1., 1., 0.7)),
+                    TextLayout::new_with_justify(JustifyText::Center),
+                ));
+            })
             .id()
     }
 }

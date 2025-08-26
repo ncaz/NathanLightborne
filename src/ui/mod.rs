@@ -10,7 +10,7 @@ use tooltip::TooltipPlugin;
 pub mod follow;
 pub mod level_select;
 mod pause;
-mod settings;
+pub mod settings;
 mod start_menu;
 pub mod tooltip;
 

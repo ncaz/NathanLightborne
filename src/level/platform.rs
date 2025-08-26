@@ -8,6 +8,7 @@ use bevy_ecs_ldtk::prelude::*;
 use bevy_rapier2d::prelude::*;
 
 use crate::{
+    lighting::LineLight2d,
     player::{kill::KillPlayerEvent, PlayerMarker},
     shared::{GroupLabel, ResetLevel},
 };
@@ -17,6 +18,9 @@ use super::{CurrentLevel, LevelSystems};
 const PLAYER_WIDTH: f32 = 16.0;
 const PLAYER_HEIGHT: f32 = 19.0;
 const BLOCK_WIDTH: f32 = 8.0;
+
+const INACTIVE_PLATFORM_LIGHT_INTENSITY: f32 = 0.001;
+const ACTIVE_PLATFORM_LIGHT_INTENSITY: f32 = 0.015;
 
 /// [Plugin] for handling moving platformsd
 pub struct PlatformPlugin;
@@ -370,6 +374,17 @@ pub struct MovingPlatformBundle {
     #[sprite_sheet]
     pub sprite: Sprite,
     pub physics: PlatformPhysicsBundle,
+    #[with(platform_line_light)]
+    light: LineLight2d,
+}
+
+pub fn platform_line_light(_: &EntityInstance) -> LineLight2d {
+    return LineLight2d {
+        color: Vec4::new(0.5, 1.0, 0.5, 1.0),
+        half_length: 9.,
+        radius: 30.,
+        volumetric_intensity: INACTIVE_PLATFORM_LIGHT_INTENSITY,
+    }
 }
 
 /// [System] that moves platforms during each [Update] step
@@ -599,7 +614,7 @@ pub fn cast_player_ray_shape(
 /// [System] that checks for [ChangePlatformStateEvent] [Event] during each [Update] step and updates the platform's state accordingly
 pub fn change_platform_state(
     mut event_reader: EventReader<ChangePlatformStateEvent>,
-    mut platform_q: Query<(Entity, &mut MovingPlatform)>,
+    mut platform_q: Query<(Entity, &mut MovingPlatform, &mut LineLight2d)>,
     current_level: Res<CurrentLevel>,
     parents: Query<&Parent>,
     levels: Query<&LevelIid>,
@@ -607,9 +622,7 @@ pub fn change_platform_state(
     for event in event_reader.read() {
         match event.new_state {
             PlatformState::Play => {
-                //println!("Platform found!");
-                for (entity, mut platform) in platform_q.iter_mut() {
-                    //println!("There is a platform");
+                for (entity, mut platform, mut line_light) in platform_q.iter_mut() {
                     let mut new_entity = entity;
                     while let Ok(parent) = parents.get(new_entity) {
                         new_entity = parent.get();
@@ -617,15 +630,10 @@ pub fn change_platform_state(
                             break;
                         }
                     }
-                    //println!("{:?}", levels.get(new_entity));
-                    //println!("{:?}", current_level.level_iid);
-                    //println!("{:?} {:?}", platform.id, event.id);
-                    //println!("{:?}", platform.path);
-                    //println!("{:?}", platform.curr_segment);
                     if platform.id == event.id
                         && current_level.level_iid == *levels.get(new_entity).unwrap()
                     {
-                        //println!("Platform in level");
+                        line_light.volumetric_intensity = ACTIVE_PLATFORM_LIGHT_INTENSITY;
                         platform.curr_state = match platform.curr_state {
                             PlatformState::Play => PlatformState::Play,
                             PlatformState::Pause => PlatformState::Play,
@@ -641,7 +649,7 @@ pub fn change_platform_state(
                 }
             }
             PlatformState::Pause => {
-                for (entity, mut platform) in platform_q.iter_mut() {
+                for (entity, mut platform, mut line_light) in platform_q.iter_mut() {
                     let mut new_entity = entity;
                     while let Ok(parent) = parents.get(new_entity) {
                         new_entity = parent.get();
@@ -652,6 +660,7 @@ pub fn change_platform_state(
                     if platform.id == event.id
                         && current_level.level_iid == *levels.get(new_entity).unwrap()
                     {
+                        line_light.volumetric_intensity = INACTIVE_PLATFORM_LIGHT_INTENSITY;
                         platform.curr_state = match platform.curr_state {
                             PlatformState::Play => PlatformState::Pause,
                             PlatformState::Pause => PlatformState::Pause,
@@ -661,7 +670,7 @@ pub fn change_platform_state(
                 }
             }
             PlatformState::Stop => {
-                for (entity, mut platform) in platform_q.iter_mut() {
+                for (entity, mut platform, mut line_light) in platform_q.iter_mut() {
                     let mut new_entity = entity;
                     while let Ok(parent) = parents.get(new_entity) {
                         new_entity = parent.get();
@@ -672,6 +681,7 @@ pub fn change_platform_state(
                     if platform.id == event.id
                         && current_level.level_iid == *levels.get(entity).unwrap()
                     {
+                        line_light.volumetric_intensity = INACTIVE_PLATFORM_LIGHT_INTENSITY;
                         platform.curr_state = match platform.curr_state {
                             PlatformState::Play => {
                                 platform.has_activated = true;
