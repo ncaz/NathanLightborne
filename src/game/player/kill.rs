@@ -13,7 +13,7 @@ use crate::{
         entity::HurtMarker, shard::reset_shard_effects_on_kill, start_flag::StartFlag,
         CurrentLevel, LevelSystems,
     },
-    shared::{AnimationState, GameState, ResetLevel, LYRA_RESPAWN_EPSILON},
+    shared::{AnimationState, GameState, PlayState, ResetLevel, LYRA_RESPAWN_EPSILON},
 };
 
 use super::{
@@ -34,7 +34,7 @@ impl Plugin for PlayerKillPlugin {
                 (
                     quick_reset
                         .run_if(input_just_pressed(KeyCode::KeyR))
-                        .run_if(in_state(GameState::Playing)),
+                        .run_if(in_state(PlayState::Playing)),
                     // reset player will try to preserve the current color, the calculations for
                     // which depend on proper values for the current level's allowed colors
                     reset_player_on_level_switch
@@ -188,11 +188,11 @@ impl FromWorld for KillAnimationCallbacks {
 pub fn start_kill_animation(
     mut ev_transition_camera: EventWriter<CameraTransitionEvent>,
     callbacks: Res<KillAnimationCallbacks>,
-    cur_game_state: Res<State<GameState>>,
-    mut next_game_state: ResMut<NextState<GameState>>,
+    cur_game_state: Res<State<PlayState>>,
+    mut next_game_state: ResMut<NextState<PlayState>>,
     mut next_anim_state: ResMut<NextState<AnimationState>>,
 ) {
-    if *cur_game_state.get() == GameState::Animating {
+    if *cur_game_state.get() == PlayState::Animating {
         return;
     }
     ev_transition_camera.send(CameraTransitionEvent {
@@ -201,7 +201,7 @@ pub fn start_kill_animation(
         callback: Some(callbacks.cb1),
         effect: CameraTransition::SlideToBlack,
     });
-    next_game_state.set(GameState::Animating);
+    next_game_state.set(PlayState::Animating);
     next_anim_state.set(AnimationState::Respawn);
 }
 
@@ -219,6 +219,6 @@ pub fn after_slide_to_black(
     ev_reset_level.send(ResetLevel::Respawn);
 }
 
-pub fn after_slide_from_black(mut next_game_state: ResMut<NextState<GameState>>) {
-    next_game_state.set(GameState::Playing);
+pub fn after_slide_from_black(mut next_game_state: ResMut<NextState<PlayState>>) {
+    next_game_state.set(PlayState::Playing);
 }

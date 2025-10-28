@@ -1,40 +1,49 @@
 use std::ops::Range;
 
+use avian2d::prelude::*;
 use bevy::prelude::*;
-use bevy_rapier2d::prelude::*;
 
 use crate::{
-    animation::AnimationConfig, camera::LYRA_LAYER, level::LevelSystems, shared::GroupLabel,
+    asset::LoadResource,
+    camera::LYRA_LAYER,
+    game::{
+        animation::AnimationConfig,
+        lyra::{
+            animation::{flip_player_direction, PlayerAnimationType},
+            spawn_lyra, Lyra,
+        },
+        Layers, LevelSystems,
+    },
+    shared::GameState,
 };
 
-use super::{
-    animation::{set_animation, PlayerAnimationType},
-    kill::reset_player_on_kill,
-    match_player::MatchPlayerZ,
-    PlayerMarker,
-};
+pub struct LyraStrandPlugin;
 
-pub struct PlayerStrandPlugin;
-
-impl Plugin for PlayerStrandPlugin {
+impl Plugin for LyraStrandPlugin {
     fn build(&self, app: &mut App) {
+        // app.add_systems(
+        //     Update,
+        //     // LOL to reset strand on reset just simulate them a bunch
+        //     (update_strand, update_strand, update_strand, update_strand)
+        //         .after(reset_player_on_kill)
+        //         .in_set(LevelSystems::Reset),
+        // );
+        app.register_type::<HairClothAssets>();
+        app.load_resource::<HairClothAssets>();
         app.add_systems(
-            Update,
-            // LOL to reset strand on reset just simulate them a bunch
-            (update_strand, update_strand, update_strand, update_strand)
-                .after(reset_player_on_kill)
-                .in_set(LevelSystems::Reset),
-        )
-        .add_systems(
-            PreUpdate,
-            add_player_hair_and_cloth.in_set(LevelSystems::Processing),
-        )
-        .add_systems(
+            OnEnter(GameState::InGame),
+            add_lyra_hair_cloth.after(spawn_lyra),
+        );
+        app.add_systems(
             FixedUpdate,
-            (
-                update_strand,
-                update_player_strand_offsets.after(set_animation),
-            )
+            update_strand
+                .after(update_player_strand_offsets)
+                .in_set(LevelSystems::Simulation),
+        );
+        app.add_systems(
+            FixedUpdate,
+            update_player_strand_offsets
+                .after(flip_player_direction)
                 .in_set(LevelSystems::Simulation),
         );
     }
@@ -58,9 +67,6 @@ pub struct Strand {
     /// should have a lower `priority` value.
     pub priority: u32,
 
-    /// Specifies whether the strand collides with the ground
-    pub physics: bool,
-
     last_pos: Vec2,
 }
 
@@ -72,7 +78,6 @@ impl Strand {
         gravity: f32,
         friction: f32,
         priority: u32,
-        physics: bool,
     ) -> Self {
         Self {
             connect,
@@ -82,15 +87,14 @@ impl Strand {
             friction,
             priority,
             last_pos: Vec2::new(0.0, 0.0),
-            physics,
         }
     }
 }
 
 pub fn update_strand(
     mut q_strand: Query<(Entity, &mut Strand)>,
+    q_rays: Query<(&RayCaster, &RayHits)>,
     mut q_transforms: Query<&mut Transform>,
-    rapier_context: ReadDefaultRapierContext,
 ) {
     let mut strands = q_strand.iter_mut().collect::<Vec<_>>();
     strands.sort_by(|(_, a), (_, b)| a.priority.cmp(&b.priority));
@@ -110,23 +114,13 @@ pub fn update_strand(
         let acceleration = Vec2::new(0.0, -strand.gravity);
         pos += velocity + acceleration;
 
-        if strand.physics {
-            let filter = QueryFilter::new().groups(CollisionGroups::new(
-                GroupLabel::STRAND,
-                GroupLabel::TERRAIN,
-            ));
-            if let Some((_, toi)) = rapier_context.cast_ray(
-                transform.translation.truncate(),
-                Vec2::new(0.0, -1.0),
-                2.0,
-                true,
-                filter,
-            ) {
-                let ground_level = transform.translation.y - toi;
-                if pos.y < ground_level {
-                    pos.y = ground_level;
+        if let Ok((ray, hits)) = q_rays.get(*entity) {
+            if let Some(hit) = hits.iter().next() {
+                let hit = ray.global_origin() + *ray.global_direction() * hit.distance;
+                if pos.y < hit.y {
+                    pos.y = hit.y;
                 }
-            }
+            };
         }
 
         let diff = connect_pos - pos;
@@ -140,38 +134,78 @@ pub fn update_strand(
 }
 
 pub struct StrandLayerGroup<'a> {
-    assets: &'a [&'a str],
+    assets: &'a [Handle<Image>],
 }
 
 impl<'a> StrandLayerGroup<'a> {
-    fn new(assets: &'a [&str]) -> Self {
+    fn new(assets: &'a [Handle<Image>]) -> Self {
         StrandLayerGroup { assets }
     }
 }
 
-pub fn add_player_hair_and_cloth(
+#[derive(Resource, Asset, Reflect, Clone)]
+#[reflect(Resource)]
+pub struct HairClothAssets {
+    hair_tiny: [Handle<Image>; 2],
+    hair_small: [Handle<Image>; 2],
+    hair: [Handle<Image>; 2],
+    cloth_tiny: [Handle<Image>; 2],
+    cloth_small: [Handle<Image>; 2],
+    cloth: [Handle<Image>; 2],
+}
+
+impl FromWorld for HairClothAssets {
+    fn from_world(world: &mut World) -> Self {
+        let asset_server = world.resource::<AssetServer>();
+
+        Self {
+            hair_tiny: [
+                asset_server.load("hair/clump_tiny_outline.png"),
+                asset_server.load("hair/clump_tiny.png"),
+            ],
+            hair_small: [
+                asset_server.load("hair/clump_small_outline.png"),
+                asset_server.load("hair/clump_small.png"),
+            ],
+            hair: [
+                asset_server.load("hair/clump_outline.png"),
+                asset_server.load("hair/clump.png"),
+            ],
+            cloth_tiny: [
+                asset_server.load("cloth/clump_tiny_outline.png"),
+                asset_server.load("cloth/clump_tiny.png"),
+            ],
+            cloth_small: [
+                asset_server.load("cloth/clump_small_outline.png"),
+                asset_server.load("cloth/clump_small.png"),
+            ],
+            cloth: [
+                asset_server.load("cloth/clump_outline.png"),
+                asset_server.load("cloth/clump.png"),
+            ],
+        }
+    }
+}
+
+pub fn add_lyra_hair_cloth(
+    lyra: Single<Entity, With<Lyra>>,
     mut commands: Commands,
-    q_player: Query<Entity, Added<PlayerMarker>>,
-    asset_server: Res<AssetServer>,
+    hair_cloth_assets: Res<HairClothAssets>,
 ) {
-    let Ok(entity) = q_player.get_single() else {
-        return;
-    };
     add_player_strand(
         2.0,
         0.2..0.15,
         0.8,
         &[
-            StrandLayerGroup::new(&["hair/clump_tiny_outline.png", "hair/clump_tiny.png"]),
-            StrandLayerGroup::new(&["hair/clump_small_outline.png", "hair/clump_small.png"]),
-            StrandLayerGroup::new(&["hair/clump_outline.png", "hair/clump.png"]),
+            StrandLayerGroup::new(&hair_cloth_assets.hair_tiny),
+            StrandLayerGroup::new(&hair_cloth_assets.hair_small),
+            StrandLayerGroup::new(&hair_cloth_assets.hair),
         ],
         &[(2, false), (1, false), (1, false), (0, false)],
         Vec3::new(-2.0, 3.0, -0.3),
         PlayerRootStrandType::Hair,
         &mut commands,
-        entity,
-        &asset_server,
+        *lyra,
         Vec2::ZERO,
     );
     for i in 0..=1 {
@@ -180,9 +214,9 @@ pub fn add_player_hair_and_cloth(
             0.12..0.03,
             0.6,
             &[
-                StrandLayerGroup::new(&["cloth/clump_tiny_outline.png", "cloth/clump_tiny.png"]),
-                StrandLayerGroup::new(&["cloth/clump_small_outline.png", "cloth/clump_small.png"]),
-                StrandLayerGroup::new(&["cloth/clump_outline.png", "cloth/clump.png"]),
+                StrandLayerGroup::new(&hair_cloth_assets.cloth_tiny),
+                StrandLayerGroup::new(&hair_cloth_assets.cloth_small),
+                StrandLayerGroup::new(&hair_cloth_assets.cloth),
             ],
             &[
                 (1, false),
@@ -197,9 +231,6 @@ pub fn add_player_hair_and_cloth(
                 (0, true),
                 (0, true),
             ],
-            // &[
-            //     1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            // ],
             Vec3::new(if i == 0 { -3.0 } else { 5.0 }, -5.0, -0.2),
             if i == 0 {
                 PlayerRootStrandType::LeftCloth
@@ -207,8 +238,7 @@ pub fn add_player_hair_and_cloth(
                 PlayerRootStrandType::RightCloth
             },
             &mut commands,
-            entity,
-            &asset_server,
+            *lyra,
             Vec2::new(0.0, 1.0),
         );
     }
@@ -232,7 +262,6 @@ pub fn add_player_strand(
 
     commands: &mut Commands,
     player_entity: Entity,
-    asset_server: &Res<AssetServer>,
     sprite_translate: Vec2,
 ) {
     let mut connect = player_entity;
@@ -254,33 +283,40 @@ pub fn add_player_strand(
                             * (strand_gravity.end - strand_gravity.start),
                     strand_friction,
                     i as u32,
-                    physics,
                 ),
-                Transform::default(),
                 InheritedVisibility::default(),
-                MatchPlayerZ {
-                    offset: player_offset.z,
-                },
+                Transform::from_translation(Vec3::new(0., 0., player_offset.z)),
                 LYRA_LAYER,
             ))
             .with_children(|parent| {
-                for (layer_i, &layer) in strand_layer_group.assets.iter().enumerate() {
+                for (layer_i, layer) in strand_layer_group.assets.iter().enumerate() {
                     let layer_transform = Transform::from_translation(
                         Vec3::new(0., 0., (layer_i as f32) * 0.01) + sprite_translate.extend(0.0),
                     );
 
                     parent.spawn((
                         LYRA_LAYER,
-                        Sprite::from_image(asset_server.load(layer)),
+                        Sprite::from_image(layer.clone()),
                         layer_transform,
                     ));
                 }
             })
             .id();
+
         if first {
             commands
                 .entity(new_id)
                 .insert(player_root_strand_type.clone());
+        }
+
+        if physics {
+            let query_filter = SpatialQueryFilter::default().with_mask([Layers::Terrain]);
+            commands.entity(new_id).insert(
+                RayCaster::new(Vec2::ZERO, Dir2::NEG_Y)
+                    .with_solidness(true)
+                    .with_max_distance(2.0)
+                    .with_query_filter(query_filter),
+            );
         }
         connect = new_id;
     }
@@ -296,19 +332,13 @@ pub enum PlayerRootStrandType {
     RightCloth,
 }
 
-/// [`System`] that updates [`Strand`] offsets based on [`PlayerRootStrandType`] and player state. Currently doesn't do anything,
-/// but should be used to make [`Strand`] offsets correct when player changes direction, crouches, etc.
 pub fn update_player_strand_offsets(
     mut strands: Query<(&mut Strand, &PlayerRootStrandType)>,
-    // currently queries for nothing, could be changed to query for a e.g. a Direction component.
-    player: Query<(&PlayerAnimationType, &Sprite, &AnimationConfig), With<PlayerMarker>>,
+    player: Single<(&PlayerAnimationType, &Sprite, &AnimationConfig), With<Lyra>>,
 ) {
-    let Ok((anim_type, sprite, anim_config)) = player.get_single() else {
-        return;
-    }; // update this to read player state, e.g. player direction.
+    let (anim_type, sprite, anim_config) = player.into_inner();
     for (mut strand, ty) in strands.iter_mut() {
         strand.offset = match ty {
-            // update these to dynamically reflect player state, e.g. setting the Hair strand's offset to (2.0, 3.0) when facing left.
             PlayerRootStrandType::Hair => anim_type.hair_offset(anim_config.cur_index),
             PlayerRootStrandType::LeftCloth => anim_type.left_cloth_offset(anim_config.cur_index),
             PlayerRootStrandType::RightCloth => anim_type.right_cloth_offset(anim_config.cur_index),

@@ -12,7 +12,6 @@ use mirror::MirrorPlugin;
 use semisolid::SemiSolidPlugin;
 use sensor::LightSensorPlugin;
 use shard::CrystalShardPlugin;
-use speedrun::SpeedrunTimerPlugin;
 use tooltip_sign::TooltipSignPlugin;
 
 use crate::{
@@ -21,7 +20,7 @@ use crate::{
     },
     light::LightColor,
     player::{LdtkPlayerBundle, PlayerMarker},
-    shared::{AnimationState, GameState, ResetLevel},
+    shared::{AnimationState, GameState, PlayState, ResetLevel},
     sound::{BgmTrack, ChangeBgmEvent},
     ui::level_select::handle_level_selection,
 };
@@ -45,7 +44,6 @@ mod semisolid;
 pub mod sensor;
 mod setup;
 pub mod shard;
-pub mod speedrun;
 pub mod start_flag;
 mod tooltip_sign;
 mod walls;
@@ -67,7 +65,6 @@ impl Plugin for LevelManagementPlugin {
             .add_plugins(LevelCompletionPlugin)
             .add_plugins(DecorationPlugin)
             .add_plugins(CrucieraPlugin)
-            .add_plugins(SpeedrunTimerPlugin)
             .add_plugins(TooltipSignPlugin)
             .init_resource::<CurrentLevel>()
             .register_ldtk_entity::<LdtkPlayerBundle>("Lyra")
@@ -106,7 +103,7 @@ impl Plugin for LevelManagementPlugin {
             .configure_sets(
                 Update,
                 LevelSystems::Simulation.run_if(
-                    in_state(GameState::Playing)
+                    in_state(PlayState::Playing)
                         .or(in_state(AnimationState::Shard)) // FIXME: skull emoji
                         .or(in_state(AnimationState::ShardDialogue))
                         .or(in_state(AnimationState::Cruciera))
@@ -116,7 +113,7 @@ impl Plugin for LevelManagementPlugin {
             .configure_sets(
                 FixedUpdate,
                 LevelSystems::Simulation.run_if(
-                    in_state(GameState::Playing)
+                    in_state(PlayState::Playing)
                         .or(in_state(AnimationState::Shard)) // FIXME: skull emoji
                         .or(in_state(AnimationState::ShardDialogue))
                         .or(in_state(AnimationState::Cruciera))
@@ -174,7 +171,7 @@ pub fn switch_level(
     mut level_selection: ResMut<LevelSelection>,
     ldtk_projects: Query<&LdtkProjectHandle>,
     ldtk_project_assets: Res<Assets<LdtkProject>>,
-    mut next_game_state: ResMut<NextState<GameState>>,
+    mut next_game_state: ResMut<NextState<PlayState>>,
     mut next_anim_state: ResMut<NextState<AnimationState>>,
     mut current_level: ResMut<CurrentLevel>,
     on_level_switch_finish_cb: Local<OnFinishLevelSwitchCallback>,
@@ -197,7 +194,7 @@ pub fn switch_level(
             if current_level.level_iid.as_str() != level.iid {
                 // relies on camera to reset the state back to switching??
                 if !current_level.level_iid.to_string().is_empty() {
-                    next_game_state.set(GameState::Animating);
+                    next_game_state.set(PlayState::Animating);
                     next_anim_state.set(AnimationState::Switch);
 
                     ev_move_camera.send(CameraMoveEvent {
@@ -246,10 +243,10 @@ impl FromWorld for OnFinishLevelSwitchCallback {
 }
 
 pub fn on_finish_level_switch(
-    mut next_game_state: ResMut<NextState<GameState>>,
+    mut next_game_state: ResMut<NextState<PlayState>>,
     mut ev_reset_level: EventWriter<ResetLevel>,
 ) {
-    next_game_state.set(GameState::Playing);
+    next_game_state.set(PlayState::Playing);
     ev_reset_level.send(ResetLevel::Switching);
 }
 

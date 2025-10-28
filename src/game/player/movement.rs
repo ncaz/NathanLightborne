@@ -75,9 +75,7 @@ pub fn queue_jump(mut q_player: Query<&mut PlayerMovement, With<PlayerMarker>>) 
 
 /// [`System`] that is run on [`Update`] to crouch player
 pub fn crouch_player(
-    // query transform
     mut q_player: Query<(&mut PlayerMovement, &mut Collider), With<PlayerMarker>>,
-    //ButtonInput<KeyCode> resource (access resource)
     keys: Res<ButtonInput<KeyCode>>,
     config: Res<Config>,
 ) {

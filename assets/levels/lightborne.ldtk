@@ -11,7 +11,7 @@
 	"iid": "a26276c0-7820-11ed-b6fd-ed05d55c9a75",
 	"jsonVersion": "1.5.3",
 	"appBuildId": 473703,
-	"nextUid": 1409,
+	"nextUid": 1410,
 	"identifierStyle": "Capitalize",
 	"toc": [],
 	"worldLayout": "Free",
@@ -12791,6 +12791,46 @@
 			"allowedRefsEntityUid": null,
 			"allowedRefTags": [],
 			"tilesetUid": null
+		},
+		{
+			"identifier": "Selectable",
+			"doc": null,
+			"__type": "Bool",
+			"uid": 1409,
+			"type": "F_Bool",
+			"isArray": false,
+			"canBeNull": false,
+			"arrayMinLength": null,
+			"arrayMaxLength": null,
+			"editorDisplayMode": "Hidden",
+			"editorDisplayScale": 1,
+			"editorDisplayPos": "Above",
+			"editorLinkStyle": "StraightArrow",
+			"editorDisplayColor": null,
+			"editorAlwaysShow": false,
+			"editorShowInWorld": true,
+			"editorCutLongValues": true,
+			"editorTextSuffix": null,
+			"editorTextPrefix": null,
+			"useForSmartColor": false,
+			"exportToToc": false,
+			"searchable": false,
+			"min": null,
+			"max": null,
+			"regex": null,
+			"acceptFileTypes": null,
+			"defaultOverride": {
+				"id": "V_Bool",
+				"params": [ true ]
+			},
+			"textLanguageMode": null,
+			"symmetricalRef": false,
+			"autoChainRef": true,
+			"allowOutOfLevelRef": true,
+			"allowedRefs": "OnlySame",
+			"allowedRefsEntityUid": null,
+			"allowedRefTags": [],
+			"tilesetUid": null
 		}
 	] },
 	"levels": [
@@ -12825,7 +12865,8 @@
 				{ "__identifier": "LevelId", "__type": "String", "__value": "2C", "__tile": null, "defUid": 1366, "realEditorValues": [{
 					"id": "V_String",
 					"params": ["2C"]
-				}] }
+				}] },
+				{ "__identifier": "Selectable", "__type": "Bool", "__value": true, "__tile": null, "defUid": 1409, "realEditorValues": [] }
 			],
 			"layerInstances": [
 				{
@@ -13990,7 +14031,8 @@
 				{ "__identifier": "LevelId", "__type": "String", "__value": "3A", "__tile": null, "defUid": 1366, "realEditorValues": [{
 					"id": "V_String",
 					"params": ["3A"]
-				}] }
+				}] },
+				{ "__identifier": "Selectable", "__type": "Bool", "__value": true, "__tile": null, "defUid": 1409, "realEditorValues": [] }
 			],
 			"layerInstances": [
 				{
@@ -15187,7 +15229,8 @@
 				{ "__identifier": "LevelId", "__type": "String", "__value": "3B", "__tile": null, "defUid": 1366, "realEditorValues": [{
 					"id": "V_String",
 					"params": ["3B"]
-				}] }
+				}] },
+				{ "__identifier": "Selectable", "__type": "Bool", "__value": true, "__tile": null, "defUid": 1409, "realEditorValues": [] }
 			],
 			"layerInstances": [
 				{
@@ -16382,7 +16425,8 @@
 				{ "__identifier": "LevelId", "__type": "String", "__value": "2A", "__tile": null, "defUid": 1366, "realEditorValues": [{
 					"id": "V_String",
 					"params": ["2A"]
-				}] }
+				}] },
+				{ "__identifier": "Selectable", "__type": "Bool", "__value": true, "__tile": null, "defUid": 1409, "realEditorValues": [] }
 			],
 			"layerInstances": [
 				{
@@ -17432,7 +17476,8 @@
 				{ "__identifier": "LevelId", "__type": "String", "__value": "2B", "__tile": null, "defUid": 1366, "realEditorValues": [{
 					"id": "V_String",
 					"params": ["2B"]
-				}] }
+				}] },
+				{ "__identifier": "Selectable", "__type": "Bool", "__value": true, "__tile": null, "defUid": 1409, "realEditorValues": [] }
 			],
 			"layerInstances": [
 				{
@@ -18474,7 +18519,8 @@
 				{ "__identifier": "LevelId", "__type": "String", "__value": "2D", "__tile": null, "defUid": 1366, "realEditorValues": [{
 					"id": "V_String",
 					"params": ["2D"]
-				}] }
+				}] },
+				{ "__identifier": "Selectable", "__type": "Bool", "__value": true, "__tile": null, "defUid": 1409, "realEditorValues": [] }
 			],
 			"layerInstances": [
 				{
@@ -19511,7 +19557,8 @@
 				{ "__identifier": "LevelId", "__type": "String", "__value": "2E", "__tile": null, "defUid": 1366, "realEditorValues": [{
 					"id": "V_String",
 					"params": ["2E"]
-				}] }
+				}] },
+				{ "__identifier": "Selectable", "__type": "Bool", "__value": true, "__tile": null, "defUid": 1409, "realEditorValues": [] }
 			],
 			"layerInstances": [
 				{
@@ -20591,7 +20638,8 @@
 				{ "__identifier": "LevelId", "__type": "String", "__value": "2F", "__tile": null, "defUid": 1366, "realEditorValues": [{
 					"id": "V_String",
 					"params": ["2F"]
-				}] }
+				}] },
+				{ "__identifier": "Selectable", "__type": "Bool", "__value": true, "__tile": null, "defUid": 1409, "realEditorValues": [] }
 			],
 			"layerInstances": [
 				{
@@ -21826,7 +21874,8 @@
 				{ "__identifier": "LevelId", "__type": "String", "__value": "1B", "__tile": null, "defUid": 1366, "realEditorValues": [{
 					"id": "V_String",
 					"params": ["1B"]
-				}] }
+				}] },
+				{ "__identifier": "Selectable", "__type": "Bool", "__value": true, "__tile": null, "defUid": 1409, "realEditorValues": [] }
 			],
 			"layerInstances": [
 				{
@@ -22938,7 +22987,8 @@
 				{ "__identifier": "LevelId", "__type": "String", "__value": "4A", "__tile": null, "defUid": 1366, "realEditorValues": [{
 					"id": "V_String",
 					"params": ["4A"]
-				}] }
+				}] },
+				{ "__identifier": "Selectable", "__type": "Bool", "__value": true, "__tile": null, "defUid": 1409, "realEditorValues": [] }
 			],
 			"layerInstances": [
 				{
@@ -24065,7 +24115,8 @@
 				{ "__identifier": "LevelId", "__type": "String", "__value": "2G", "__tile": null, "defUid": 1366, "realEditorValues": [{
 					"id": "V_String",
 					"params": ["2G"]
-				}] }
+				}] },
+				{ "__identifier": "Selectable", "__type": "Bool", "__value": true, "__tile": null, "defUid": 1409, "realEditorValues": [] }
 			],
 			"layerInstances": [
 				{
@@ -25177,7 +25228,8 @@
 				{ "__identifier": "LevelId", "__type": "String", "__value": "2#", "__tile": null, "defUid": 1366, "realEditorValues": [{
 					"id": "V_String",
 					"params": ["2#"]
-				}] }
+				}] },
+				{ "__identifier": "Selectable", "__type": "Bool", "__value": true, "__tile": null, "defUid": 1409, "realEditorValues": [] }
 			],
 			"layerInstances": [
 				{
@@ -25922,7 +25974,8 @@
 				{ "__identifier": "LevelId", "__type": "String", "__value": "3#", "__tile": null, "defUid": 1366, "realEditorValues": [{
 					"id": "V_String",
 					"params": ["3#"]
-				}] }
+				}] },
+				{ "__identifier": "Selectable", "__type": "Bool", "__value": true, "__tile": null, "defUid": 1409, "realEditorValues": [] }
 			],
 			"layerInstances": [
 				{
@@ -26852,7 +26905,8 @@
 				{ "__identifier": "LevelId", "__type": "String", "__value": "4#", "__tile": null, "defUid": 1366, "realEditorValues": [{
 					"id": "V_String",
 					"params": ["4#"]
-				}] }
+				}] },
+				{ "__identifier": "Selectable", "__type": "Bool", "__value": true, "__tile": null, "defUid": 1409, "realEditorValues": [] }
 			],
 			"layerInstances": [
 				{
@@ -27868,9 +27922,13 @@
 					"params": ["Blue"]
 				} ] },
 				{ "__identifier": "LevelName", "__type": "String", "__value": "", "__tile": null, "defUid": 1365, "realEditorValues": [] },
-				{ "__identifier": "LevelId", "__type": "String", "__value": ".End", "__tile": null, "defUid": 1366, "realEditorValues": [{
+				{ "__identifier": "LevelId", "__type": "String", "__value": "End", "__tile": null, "defUid": 1366, "realEditorValues": [{
 					"id": "V_String",
-					"params": [".End"]
+					"params": ["End"]
+				}] },
+				{ "__identifier": "Selectable", "__type": "Bool", "__value": false, "__tile": null, "defUid": 1409, "realEditorValues": [{
+					"id": "V_Bool",
+					"params": [ false ]
 				}] }
 			],
 			"layerInstances": [
@@ -28537,7 +28595,8 @@
 				{ "__identifier": "LevelId", "__type": "String", "__value": "4B", "__tile": null, "defUid": 1366, "realEditorValues": [{
 					"id": "V_String",
 					"params": ["4B"]
-				}] }
+				}] },
+				{ "__identifier": "Selectable", "__type": "Bool", "__value": true, "__tile": null, "defUid": 1409, "realEditorValues": [] }
 			],
 			"layerInstances": [
 				{
@@ -29977,7 +30036,8 @@
 				{ "__identifier": "LevelId", "__type": "String", "__value": "1A", "__tile": null, "defUid": 1366, "realEditorValues": [{
 					"id": "V_String",
 					"params": ["1A"]
-				}] }
+				}] },
+				{ "__identifier": "Selectable", "__type": "Bool", "__value": true, "__tile": null, "defUid": 1409, "realEditorValues": [] }
 			],
 			"layerInstances": [
 				{

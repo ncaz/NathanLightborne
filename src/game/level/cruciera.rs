@@ -11,7 +11,7 @@ use crate::{
     },
     lighting::LineLight2d,
     player::{InputLocked, PlayerMarker},
-    shared::{AnimationState, GameState},
+    shared::{AnimationState, GameState, PlayState},
 };
 
 use super::{CurrentLevel, LevelSystems};
@@ -125,12 +125,12 @@ pub fn check_start_cutscene(
     current_level: Res<CurrentLevel>,
     mut ev_move_camera: EventWriter<CameraMoveEvent>,
     mut ev_zoom_camera: EventWriter<CameraZoomEvent>,
-    mut next_game_state: ResMut<NextState<GameState>>,
+    mut next_game_state: ResMut<NextState<PlayState>>,
     mut next_anim_state: ResMut<NextState<AnimationState>>,
     callbacks: Res<CrucieraCallbacks>,
-    cur_game_state: Res<State<GameState>>,
+    cur_game_state: Res<State<PlayState>>,
 ) {
-    if *cur_game_state.get() == GameState::Animating {
+    if *cur_game_state.get() == PlayState::Animating {
         return;
     }
     let Ok((cruciera_transform, mut cruciera)) = q_cruciera.get_single_mut() else {
@@ -174,7 +174,7 @@ pub fn check_start_cutscene(
             },
         });
 
-        next_game_state.set(GameState::Animating);
+        next_game_state.set(PlayState::Animating);
         next_anim_state.set(AnimationState::Cruciera);
     }
 }
@@ -396,12 +396,12 @@ pub fn end_dialogue(
 
 pub fn reset_state(
     mut commands: Commands,
-    mut next_game_state: ResMut<NextState<GameState>>,
+    mut next_game_state: ResMut<NextState<PlayState>>,
     q_player: Query<Entity, With<PlayerMarker>>,
 ) {
     let player_entity = q_player
         .get_single()
         .expect("Player should not die during cutscene");
-    next_game_state.set(GameState::Playing);
+    next_game_state.set(PlayState::Playing);
     commands.entity(player_entity).remove::<InputLocked>();
 }

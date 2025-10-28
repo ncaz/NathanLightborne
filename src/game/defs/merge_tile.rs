@@ -5,6 +5,8 @@ use std::{
     hash::Hash,
 };
 
+use crate::ldtk::LdtkLevelParam;
+
 pub trait MergedTile {
     /// The comparison data used to compute if two tiles are mergeable or not
     type CompareData: PartialEq + Eq + Hash;
@@ -26,11 +28,10 @@ pub trait MergedTile {
 
 pub fn spawn_merged_tiles<TILE>(
     mut commands: Commands,
-    tile_query: Query<(&GridCoords, &Parent, &TILE), Added<TILE>>,
-    parent_query: Query<&Parent, Without<TILE>>,
+    tile_query: Query<(&GridCoords, &ChildOf, &TILE), Added<TILE>>,
+    parent_query: Query<&ChildOf, Without<TILE>>,
     level_query: Query<(Entity, &LevelIid)>,
-    ldtk_projects: Query<&LdtkProjectHandle>,
-    ldtk_project_assets: Res<Assets<LdtkProject>>,
+    ldtk_level_param: LdtkLevelParam,
 ) where
     TILE: MergedTile + Component,
 {
@@ -56,9 +57,9 @@ pub fn spawn_merged_tiles<TILE>(
     > = HashMap::new();
 
     tile_query.iter().for_each(|(&grid_coords, parent, tile)| {
-        if let Ok(grandparent) = parent_query.get(parent.get()) {
+        if let Ok(grandparent) = parent_query.get(parent.0) {
             level_to_tile_locations
-                .entry(grandparent.get())
+                .entry(grandparent.0)
                 .or_default()
                 .entry(tile.compare_data())
                 .or_default()
@@ -66,18 +67,13 @@ pub fn spawn_merged_tiles<TILE>(
         }
     });
 
-    let ldtk_project = ldtk_project_assets
-        .get(ldtk_projects.single())
-        .expect("Project should be loaded if level has spawned");
-
     level_query.iter().for_each(|(level_entity, level_iid)| {
         let Some(level_tiles) = level_to_tile_locations.get(&level_entity) else {
             return;
         };
 
-        let level = ldtk_project
-            .as_standalone()
-            .get_loaded_level_by_iid(&level_iid.to_string())
+        let level = ldtk_level_param
+            .level_by_iid(level_iid)
             .expect("Spawned level should exist in LDtk project");
 
         let LayerInstance {
@@ -145,17 +141,15 @@ pub fn spawn_merged_tiles<TILE>(
 
             commands.entity(level_entity).with_children(|level| {
                 for tile_rect in tile_rects {
-                    let half_extent = Vec2::new(
-                        (tile_rect.right as f32 - tile_rect.left as f32 + 1.) * grid_size as f32
-                            / 2.,
-                        (tile_rect.top as f32 - tile_rect.bottom as f32 + 1.) * grid_size as f32
-                            / 2.,
+                    let extent = Vec2::new(
+                        (tile_rect.right as f32 - tile_rect.left as f32 + 1.) * grid_size as f32,
+                        (tile_rect.top as f32 - tile_rect.bottom as f32 + 1.) * grid_size as f32,
                     );
                     let center = Vec2::new(
                         (tile_rect.left + tile_rect.right + 1) as f32 * grid_size as f32 / 2.,
                         (tile_rect.bottom + tile_rect.top + 1) as f32 * grid_size as f32 / 2.,
                     );
-                    TILE::bundle(&mut level.spawn_empty(), center, half_extent, compare_data);
+                    TILE::bundle(&mut level.spawn_empty(), center, extent, compare_data);
                 }
             });
         }

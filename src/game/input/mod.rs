@@ -23,13 +23,13 @@ pub fn update_cursor_world_coords(
     q_window: Query<&Window, With<PrimaryWindow>>,
     q_camera: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
 ) {
-    let Ok((camera, camera_transform)) = q_camera.get_single() else {
+    let Ok((camera, camera_transform)) = q_camera.single() else {
         return;
     };
-    let Ok(window) = q_window.get_single() else {
+    let Ok(window) = q_window.single() else {
         return;
     };
-    let Ok(mut world_coords) = q_coords.get_single_mut() else {
+    let Ok(mut world_coords) = q_coords.single_mut() else {
         return;
     };
     let Some(cursor_pos) = window.cursor_position() else {

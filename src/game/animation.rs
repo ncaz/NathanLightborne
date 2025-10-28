@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use bevy::prelude::*;
 
-use crate::level::LevelSystems;
+use crate::game::LevelSystems;
 
 pub struct SpriteAnimationPlugin;
 

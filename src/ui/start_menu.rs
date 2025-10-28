@@ -1,151 +1,117 @@
 use bevy::{prelude::*, ui::widget::NodeImageMode};
 
 use crate::{
-    shared::{GameState, UiState},
+    asset::LoadResource,
+    shared::UiState,
     sound::{BgmTrack, ChangeBgmEvent},
+    ui::{UiButton, UiClick, UiFont, UiFontSize},
 };
 
 pub struct StartMenuPlugin;
 
 impl Plugin for StartMenuPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, spawn_start.run_if(in_state(UiState::StartMenu)))
-            .add_systems(Update, exit_start.run_if(not(in_state(UiState::StartMenu))))
-            .add_systems(Update, start_game);
+        app.register_type::<StartMenuAssets>();
+        app.load_resource::<StartMenuAssets>();
+        app.add_systems(OnEnter(UiState::StartMenu), spawn_start_menu);
+        app.add_systems(OnExit(UiState::StartMenu), despawn_start_menu);
+    }
+}
+
+#[derive(Resource, Asset, Clone, Reflect)]
+#[reflect(Resource)]
+pub struct StartMenuAssets {
+    #[dependency]
+    background: Handle<Image>,
+}
+
+impl FromWorld for StartMenuAssets {
+    fn from_world(world: &mut World) -> Self {
+        let asset_server = world.resource::<AssetServer>();
+
+        Self {
+            background: asset_server.load("ui/start.png"),
+        }
     }
 }
 
 #[derive(Component)]
 pub struct StartMenuMarker;
 
-#[derive(Component)]
-pub enum StartMenuButtonMarker {
-    Play,
-    Settings,
-    Quit,
-}
+fn spawn_start_menu(mut commands: Commands, ui_font: Res<UiFont>, assets: Res<StartMenuAssets>) {
+    info!("Spawning Start Menu!");
 
-fn spawn_start(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    q_start_menu: Query<Entity, With<StartMenuMarker>>,
-    mut ev_change_bgm: EventWriter<ChangeBgmEvent>,
-) {
-    if q_start_menu.get_single().is_ok() {
-        return;
-    };
+    commands.trigger(ChangeBgmEvent(BgmTrack::LevelSelect));
 
-    let font = TextFont {
-        font: asset_server.load("fonts/Outfit-Medium.ttf"),
-        ..default()
-    };
-
-    ev_change_bgm.send(ChangeBgmEvent(BgmTrack::LevelSelect));
+    let container = commands
+        .spawn(Node {
+            width: Val::Percent(100.),
+            height: Val::Percent(100.),
+            flex_direction: FlexDirection::Column,
+            justify_content: JustifyContent::Center,
+            align_items: AlignItems::Center,
+            column_gap: Val::Px(32.0),
+            row_gap: Val::Px(32.0),
+            padding: UiRect::all(Val::Px(96.)).with_top(Val::Percent(30.)),
+            ..default()
+        })
+        .insert(ImageNode::from(assets.background.clone()).with_mode(NodeImageMode::Stretch))
+        .insert(BackgroundColor(Color::BLACK))
+        .insert(StartMenuMarker)
+        .id();
 
     commands
-        .spawn((
-            Node {
-                width: Val::Percent(100.),
-                height: Val::Percent(100.),
-                justify_content: JustifyContent::Center,
-                ..default()
+        .spawn(Node {
+            width: Val::Auto,
+            height: Val::Auto,
+            ..default()
+        })
+        .insert(ui_font.text_font().with_font_size(UiFontSize::BUTTON))
+        .insert(Text::new("Play"))
+        .insert(Button)
+        .insert(UiButton)
+        .insert(ChildOf(container))
+        .observe(
+            |_: On<UiClick>, mut next_ui_state: ResMut<NextState<UiState>>| {
+                next_ui_state.set(UiState::LevelSelect);
             },
-            ImageNode::from(asset_server.load("ui/start.png")).with_mode(NodeImageMode::Stretch),
-            BackgroundColor(Color::BLACK),
-            StartMenuMarker,
-        ))
-        .with_children(|container| {
-            container
-                .spawn((Node {
-                    width: Val::Percent(100.),
-                    height: Val::Percent(70.),
-                    top: Val::Percent(30.),
-                    flex_direction: FlexDirection::Column,
-                    justify_content: JustifyContent::Center,
-                    align_items: AlignItems::Center,
-                    column_gap: Val::Px(32.0),
-                    row_gap: Val::Px(32.0),
-                    ..default()
-                },))
-                .with_child((
-                    Node {
-                        width: Val::Auto,
-                        height: Val::Auto,
-                        ..default()
-                    },
-                    font.clone().with_font_size(48.),
-                    Text::new("Play"),
-                    Button,
-                    StartMenuButtonMarker::Play,
-                ))
-                .with_child((
-                    Node {
-                        width: Val::Auto,
-                        height: Val::Auto,
-                        ..default()
-                    },
-                    font.clone().with_font_size(48.),
-                    Text::new("Settings"),
-                    Button,
-                    StartMenuButtonMarker::Settings,
-                ))
-                .with_child((
-                    Node {
-                        width: Val::Auto,
-                        height: Val::Auto,
-                        ..default()
-                    },
-                    font.clone().with_font_size(48.),
-                    Text::new("Quit"),
-                    Button,
-                    StartMenuButtonMarker::Quit,
-                ));
+        );
+
+    commands
+        .spawn(Node {
+            width: Val::Auto,
+            height: Val::Auto,
+            ..default()
+        })
+        .insert(ui_font.text_font().with_font_size(UiFontSize::BUTTON))
+        .insert(Text::new("Settings"))
+        .insert(Button)
+        .insert(UiButton)
+        .insert(ChildOf(container))
+        .observe(
+            |_: On<UiClick>, mut next_ui_state: ResMut<NextState<UiState>>| {
+                next_ui_state.set(UiState::Settings);
+            },
+        );
+
+    commands
+        .spawn(Node {
+            width: Val::Auto,
+            height: Val::Auto,
+            ..default()
+        })
+        .insert(ui_font.text_font().with_font_size(UiFontSize::BUTTON))
+        .insert(Text::new("Quit"))
+        .insert(Button)
+        .insert(UiButton)
+        .insert(ChildOf(container))
+        .observe(|_: On<UiClick>, mut ev_app_exit: MessageWriter<AppExit>| {
+            ev_app_exit.write(AppExit::Success);
         });
 }
 
-fn exit_start(mut commands: Commands, query: Query<Entity, With<StartMenuMarker>>) {
-    let Ok(entity) = query.get_single() else {
-        return;
-    };
-    commands.entity(entity).despawn_recursive();
-}
+fn despawn_start_menu(mut commands: Commands, start_menu: Single<Entity, With<StartMenuMarker>>) {
+    info!("Despawning Start Menu!");
 
-fn start_game(
-    mut commands: Commands,
-    q_button: Query<(&Interaction, &StartMenuButtonMarker), Changed<Interaction>>,
-    mut next_ui_state: ResMut<NextState<UiState>>,
-    mut next_game_state: ResMut<NextState<GameState>>,
-    mut exit: EventWriter<AppExit>,
-    asset_server: Res<AssetServer>,
-) {
-    for (interaction, button_marker) in q_button.iter() {
-        match *interaction {
-            Interaction::Pressed => {
-                commands.spawn((
-                    AudioPlayer::new(asset_server.load("sfx/click.wav")),
-                    PlaybackSettings::DESPAWN,
-                ));
-
-                next_game_state.set(GameState::Ui);
-                match button_marker {
-                    StartMenuButtonMarker::Play => {
-                        next_ui_state.set(UiState::LevelSelect);
-                    }
-                    StartMenuButtonMarker::Settings => {
-                        next_ui_state.set(UiState::Settings);
-                    }
-                    StartMenuButtonMarker::Quit => {
-                        exit.send(AppExit::Success);
-                    }
-                }
-            }
-            Interaction::Hovered => {
-                commands.spawn((
-                    AudioPlayer::new(asset_server.load("sfx/hover.wav")),
-                    PlaybackSettings::DESPAWN,
-                ));
-            }
-            _ => {}
-        }
-    }
+    commands.entity(*start_menu).despawn();
 }

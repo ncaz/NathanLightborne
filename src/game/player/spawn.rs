@@ -55,8 +55,8 @@ pub fn init_player_bundle(_: &EntityInstance) -> PlayerBundle {
 
 /// [`System`] that spawns the player's hurtbox [`Collider`] as a child entity.
 pub fn update_player_entity(
-    mut commands: Commands,
     q_player: Query<Entity, Added<PlayerMarker>>,
+    mut commands: Commands,
     q_player_camera: Query<Entity, With<PlayerCamera>>,
     asset_server: Res<AssetServer>,
     mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
@@ -99,8 +99,7 @@ pub fn update_player_entity(
                 Collider::cuboid(4.0, 5.0),
             )]))
             .insert(Sensor)
-            .insert(RigidBody::Dynamic)
-            .insert(GravityScale(0.0))
+            .insert(RigidBody::Kinematic)
             .insert(PlayerHurtMarker)
             .insert(Transform::default())
             .insert(CollisionGroups::new(

@@ -20,7 +20,7 @@ use crate::{
         },
         InputLocked, PlayerHurtMarker, PlayerMarker,
     },
-    shared::{AnimationState, GameState, ResetLevel},
+    shared::{AnimationState, GameState, PlayState, ResetLevel},
     sound::{BgmMarker, Fade, FadeSettings, BGM_VOLUME},
 };
 
@@ -238,8 +238,8 @@ const SHARD_FADE_VOLUME: f32 = 0.1;
 #[allow(clippy::too_many_arguments, clippy::type_complexity)]
 pub fn start_shard_animation(
     mut commands: Commands,
-    cur_game_state: Res<State<GameState>>,
-    mut next_game_state: ResMut<NextState<GameState>>,
+    cur_game_state: Res<State<PlayState>>,
+    mut next_game_state: ResMut<NextState<PlayState>>,
     mut next_anim_state: ResMut<NextState<AnimationState>>,
     mut ev_move_camera: EventWriter<CameraMoveEvent>,
     mut ev_zoom_camera: EventWriter<CameraZoomEvent>,
@@ -259,7 +259,7 @@ pub fn start_shard_animation(
     let shard_info = ev_shard_animation.read().next().unwrap().0;
 
     shard_anim_cbs.for_shard = Some(shard_info);
-    if *cur_game_state.get() == GameState::Animating {
+    if *cur_game_state.get() == PlayState::Animating {
         return;
     }
     let Ok((player_entity, player_transform)) = q_player.get_single() else {
@@ -309,7 +309,7 @@ pub fn start_shard_animation(
             callback: Some(shard_anim_cbs.cb[0]),
         },
     });
-    next_game_state.set(GameState::Animating);
+    next_game_state.set(PlayState::Animating);
     next_anim_state.set(AnimationState::Shard);
 }
 
@@ -492,12 +492,12 @@ pub fn on_shard_text_read_finish(
 
 pub fn on_shard_zoom_back_finish(
     mut commands: Commands,
-    mut next_game_state: ResMut<NextState<GameState>>,
+    mut next_game_state: ResMut<NextState<PlayState>>,
     q_player: Query<Entity, With<PlayerMarker>>,
 ) {
     let player_entity = q_player
         .get_single()
         .expect("Player should not die during shard transition");
-    next_game_state.set(GameState::Playing);
+    next_game_state.set(PlayState::Playing);
     commands.entity(player_entity).remove::<InputLocked>();
 }

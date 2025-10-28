@@ -1,6 +1,6 @@
-use bevy::{prelude::*, window::PrimaryWindow};
+use bevy::{prelude::*, ui::UiSystems, window::PrimaryWindow};
 
-use crate::camera::MainCamera;
+use crate::{camera::MainCamera, shared::GameState};
 
 pub struct TargetFollowingPlugin;
 impl Plugin for TargetFollowingPlugin {
@@ -8,8 +8,9 @@ impl Plugin for TargetFollowingPlugin {
         app.add_systems(
             PostUpdate,
             follow_ws_position_targets
-                .after(bevy::ui::UiSystem::Layout)
-                .before(bevy::transform::TransformSystem::TransformPropagate),
+                .after(UiSystems::Layout)
+                .before(TransformSystems::Propagate)
+                .run_if(in_state(GameState::InGame)),
         );
     }
 }
@@ -23,17 +24,12 @@ pub struct WorldSpacePositionTarget {
 }
 
 fn follow_ws_position_targets(
-    q_camera: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
+    camera: Single<(&Camera, &GlobalTransform), With<MainCamera>>,
+    window: Single<&Window, With<PrimaryWindow>>,
     mut q_ws_target_nodes: Query<(Entity, &WorldSpacePositionTarget)>,
-    q_window: Query<&Window, With<PrimaryWindow>>,
     mut xforms: ParamSet<(TransformHelper, Query<&mut Transform>)>,
 ) {
-    let Ok((camera, camera_transform)) = q_camera.get_single() else {
-        return;
-    };
-    let Ok(window) = q_window.get_single() else {
-        return;
-    };
+    let (camera, camera_transform) = *camera;
 
     for (entity, ws_target) in q_ws_target_nodes.iter_mut() {
         let Ok(global_xform) = xforms.p0().compute_global_transform(**ws_target) else {

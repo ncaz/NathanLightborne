@@ -1,14 +1,30 @@
+use avian2d::prelude::LinearVelocity;
 use bevy::{math::vec2, prelude::*};
-use bevy_rapier2d::prelude::*;
 
-use crate::{
-    animation::AnimationConfig, input::CursorWorldCoords, level::platform::cast_player_ray_shape,
-    shared::GroupLabel,
+use crate::game::{
+    animation::AnimationConfig,
+    lyra::{
+        controller::{Grounded, MovementInfo},
+        Lyra,
+    },
+    LevelSystems,
 };
 
-use super::{light::PlayerLightInventory, movement::PlayerMovement, PlayerMarker};
-
 pub const ANIMATION_FRAMES: usize = 29;
+
+pub struct LyraAnimationPlugin;
+
+impl Plugin for LyraAnimationPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(
+            FixedUpdate,
+            flip_player_direction
+                .after(set_animation)
+                .in_set(LevelSystems::Simulation),
+        );
+        app.add_systems(FixedUpdate, set_animation.in_set(LevelSystems::Simulation));
+    }
+}
 
 #[derive(Debug, Component, PartialEq, Eq, Clone, Copy, Default)]
 pub enum PlayerAnimationType {
@@ -83,80 +99,61 @@ impl From<PlayerAnimationType> for AnimationConfig {
 }
 
 pub fn flip_player_direction(
-    mut q_player: Query<
+    lyra: Single<
         (
             &mut Sprite,
-            &KinematicCharacterControllerOutput,
-            &GlobalTransform,
-            &PlayerLightInventory,
+            &LinearVelocity,
+            // &GlobalTransform,
+            // &PlayerLightInventory,
         ),
-        With<PlayerMarker>,
+        With<Lyra>,
     >,
-    buttons: Res<ButtonInput<MouseButton>>,
-    q_cursor: Query<&CursorWorldCoords>,
+    // buttons: Res<ButtonInput<MouseButton>>,
+    // q_cursor: Query<&CursorWorldCoords>,
 ) {
-    let Ok((mut player_sprite, player_controller_output, player_transform, player_light_inventory)) =
-        q_player.get_single_mut()
-    else {
-        return;
-    };
-    let Ok(cursor_coords) = q_cursor.get_single() else {
-        return;
-    };
+    let (mut player_sprite, lin_vel) = lyra.into_inner();
+    // let Ok(cursor_coords) = q_cursor.get_single() else {
+    //     return;
+    // };
 
-    if buttons.pressed(MouseButton::Left) && player_light_inventory.can_shoot() {
-        let to_cursor = cursor_coords.pos - player_transform.translation().xy();
-        player_sprite.flip_x = to_cursor.x < 0.0;
-        return;
-    }
+    // if buttons.pressed(MouseButton::Left) && player_light_inventory.can_shoot() {
+    //     let to_cursor = cursor_coords.pos - player_transform.translation().xy();
+    //     player_sprite.flip_x = to_cursor.x < 0.0;
+    //     return;
+    // }
 
     const PLAYER_FACING_EPSILON: f32 = 0.01;
-    if player_controller_output.desired_translation.x < -PLAYER_FACING_EPSILON {
+    if lin_vel.0.x < -PLAYER_FACING_EPSILON {
         player_sprite.flip_x = true;
-    } else if player_controller_output.desired_translation.x > PLAYER_FACING_EPSILON {
+    } else if lin_vel.0.x > PLAYER_FACING_EPSILON {
         player_sprite.flip_x = false;
     }
 }
 
 pub fn set_animation(
-    mut q_player: Query<
+    player: Single<
         (
-            &PlayerMovement,
+            &MovementInfo,
             &mut AnimationConfig,
             &mut PlayerAnimationType,
-            &Transform,
-            &KinematicCharacterControllerOutput,
+            &LinearVelocity,
+            Has<Grounded>,
         ),
-        With<PlayerMarker>,
+        With<Lyra>,
     >,
     mut was_grounded: Local<bool>,
-    rapier_context: ReadDefaultRapierContext<'_, '_>,
 ) {
-    let Ok((movement, mut config, mut animation, transform, output)) = q_player.get_single_mut()
-    else {
-        return;
-    };
+    let (movement, mut config, mut animation, lin_vel, is_grounded) = player.into_inner();
 
-    let entity_below_player = cast_player_ray_shape(
-        &rapier_context,
-        transform,
-        0.0,
-        -11.0,
-        16.0,
-        2.0,
-        Vec2::new(0.0, -1.0),
-        GroupLabel::PLATFORM,
-    );
-
-    let new_anim = if !output.grounded && output.effective_translation.y > 0.0 {
+    let new_anim = if !is_grounded && lin_vel.0.y > 0.0 {
         PlayerAnimationType::Jump
-    } else if !output.grounded && entity_below_player.is_none() {
+    } else if !is_grounded {
         PlayerAnimationType::Fall
-    } else if output.grounded && !*was_grounded {
+    } else if is_grounded && !*was_grounded {
         PlayerAnimationType::Land
-    } else if output.grounded && output.effective_translation.x.abs() > 0.05 {
+    } else if is_grounded && lin_vel.0.x.abs() > 0.05 {
         PlayerAnimationType::Walk
-    } else if output.grounded && movement.crouching {
+    } else if is_grounded && movement.crouched {
         PlayerAnimationType::Crouch
     } else {
         PlayerAnimationType::Idle
@@ -172,5 +169,5 @@ pub fn set_animation(
             *config = AnimationConfig::from(new_anim);
         }
     }
-    *was_grounded = output.grounded || entity_below_player.is_some();
+    *was_grounded = is_grounded;
 }
