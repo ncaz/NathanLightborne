@@ -1,7 +1,10 @@
 use avian2d::{math::*, prelude::*};
 use bevy::{ecs::query::Has, prelude::*};
 
-use crate::game::Layers;
+use crate::{
+    game::{lyra::Lyra, Layers, LevelSystems},
+    shared::PlayState,
+};
 
 /// The number of [`FixedUpdate`] steps the player can jump for after pressing the spacebar.
 const SHOULD_JUMP_TICKS: isize = 8;
@@ -25,14 +28,39 @@ pub struct CharacterControllerPlugin;
 
 impl Plugin for CharacterControllerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_message::<MovementAction>()
-            .add_systems(Update, (keyboard_input, update_grounded).chain())
-            .add_systems(FixedUpdate, movement.chain())
-            .add_systems(
-                PhysicsSchedule,
-                kinematic_controller_collisions.in_set(NarrowPhaseSystems::Last),
-            );
+        app.add_message::<MovementAction>();
+        app.add_systems(Update, keyboard_input);
+        app.add_systems(
+            FixedUpdate,
+            update_grounded
+                .before(movement)
+                .in_set(LevelSystems::Simulation),
+        );
+        app.add_systems(FixedUpdate, movement.in_set(LevelSystems::Simulation));
+        app.add_systems(
+            PhysicsSchedule,
+            kinematic_controller_collisions.in_set(NarrowPhaseSystems::Last),
+        );
+        app.add_systems(OnEnter(PlayState::Animating), cache_linear_vel);
+        app.add_systems(OnExit(PlayState::Animating), res_linear_vel);
     }
+}
+
+#[derive(Component)]
+pub struct CachedLinearVelocity(pub Vector);
+
+pub fn cache_linear_vel(
+    lyra: Single<(&mut LinearVelocity, &mut CachedLinearVelocity), With<Lyra>>,
+) {
+    let (mut linvel, mut cache) = lyra.into_inner();
+    cache.0 = linvel.0;
+    linvel.0 = Vec2::ZERO;
+}
+
+pub fn res_linear_vel(lyra: Single<(&mut LinearVelocity, &mut CachedLinearVelocity), With<Lyra>>) {
+    let (mut linvel, mut cache) = lyra.into_inner();
+    linvel.0 = cache.0;
+    cache.0 = Vec2::ZERO;
 }
 
 /// A [`Message`] written for a movement input action.
@@ -92,7 +120,7 @@ impl CharacterControllerBundle {
     }
 }
 
-fn keyboard_input(
+pub fn keyboard_input(
     mut movement_writer: MessageWriter<MovementAction>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
 ) {
@@ -120,7 +148,7 @@ fn keyboard_input(
     }
 }
 
-fn update_grounded(
+pub fn update_grounded(
     mut commands: Commands,
     mut query: Query<(Entity, &ShapeHits), With<CharacterController>>,
 ) {
@@ -134,10 +162,12 @@ fn update_grounded(
     }
 }
 
-fn movement(
+pub fn movement(
+    time: Res<Time>,
     mut movement_reader: MessageReader<MovementAction>,
     mut controllers: Query<(&mut MovementInfo, &mut LinearVelocity, Has<Grounded>)>,
 ) {
+    let delta = time.delta_secs() * 64.;
     for (mut movement_info, mut linear_velocity, is_grounded) in &mut controllers {
         if is_grounded {
             movement_info.coyote_time_ticks = COYOTE_TIME_TICKS;
@@ -148,7 +178,7 @@ fn movement(
         for event in movement_reader.read() {
             match event {
                 MovementAction::Move(direction) => {
-                    linear_velocity.x += *direction * PLAYER_MOVE_VEL * 64.;
+                    linear_velocity.x += *direction * PLAYER_MOVE_VEL * 64. * delta;
                     moved = true;
                 }
                 MovementAction::Jump => {
@@ -175,7 +205,7 @@ fn movement(
         } else if is_grounded {
             linear_velocity.y = 0.;
         } else {
-            linear_velocity.y -= PLAYER_GRAVITY * 64.;
+            linear_velocity.y -= PLAYER_GRAVITY * 64. * delta;
         }
 
         linear_velocity.y = linear_velocity
@@ -265,11 +295,9 @@ fn kinematic_controller_collisions(
             };
 
             let mut deepest_penetration: Scalar = Scalar::MIN;
-
-            // Solve each penetrating contact in the manifold.
             for contact in manifold.points.iter() {
                 if contact.penetration > 0.0 {
-                    position.0 += normal * contact.penetration + 0.02;
+                    position.0 += normal * (contact.penetration + 0.02);
                 }
                 deepest_penetration = deepest_penetration.max(contact.penetration);
             }
@@ -279,26 +307,28 @@ fn kinematic_controller_collisions(
                 continue;
             }
 
-            // The character is not yet intersecting the other object,
-            // but the narrow phase detected a speculative collision.
-            //
-            // We need to push back the part of the velocity
-            // that would cause penetration within the next frame.
-            let normal_speed = linear_velocity.dot(normal);
+            if deepest_penetration <= 0.0 {
+                // The character is not yet intersecting the other object,
+                // but the narrow phase detected a speculative collision.
+                //
+                // We need to push back the part of the velocity
+                // that would cause penetration within the next frame.
+                let normal_speed = linear_velocity.dot(normal);
 
-            // Don't apply an impulse if the character is moving away from the surface.
-            if normal_speed >= 0.0 {
-                continue;
+                // Don't apply an impulse if the character is moving away from the surface.
+                if normal_speed >= 0.0 {
+                    continue;
+                }
+
+                // Compute the impulse to apply.
+                let impulse_magnitude =
+                    normal_speed - (deepest_penetration / time.delta_secs_f64().adjust_precision());
+                let mut impulse = impulse_magnitude * normal;
+
+                // Apply the impulse differently depending on the slope angle.
+                impulse.y = impulse.y.max(0.0);
+                linear_velocity.0 -= impulse;
             }
-
-            // Compute the impulse to apply.
-            let impulse_magnitude =
-                normal_speed - (deepest_penetration / time.delta_secs_f64().adjust_precision());
-            let mut impulse = impulse_magnitude * normal;
-
-            // Apply the impulse differently depending on the slope angle.
-            impulse.y = impulse.y.max(0.0);
-            linear_velocity.0 -= impulse;
         }
     }
 }

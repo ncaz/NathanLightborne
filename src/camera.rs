@@ -13,7 +13,6 @@ use crate::callback::Callback;
 
 pub const CAMERA_WIDTH: u32 = 320;
 pub const CAMERA_HEIGHT: u32 = 180;
-pub const CAMERA_ANIMATION_SECS: f32 = 0.4;
 
 pub const TERRAIN_LAYER: RenderLayers = RenderLayers::layer(0);
 pub const LYRA_LAYER: RenderLayers = RenderLayers::layer(1);
@@ -348,7 +347,6 @@ pub fn handle_move_camera(
         }
         CameraControlType::Instant => {
             camera.translation = event.to.extend(camera.translation.z);
-            animations.translation = None;
         }
     }
 }
@@ -406,7 +404,6 @@ pub fn handle_zoom_camera(
         }
         CameraControlType::Instant => {
             projection.scale = event.scale;
-            animations.zoom = None;
         }
     }
 }

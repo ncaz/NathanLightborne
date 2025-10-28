@@ -4,7 +4,7 @@ use bevy::{math::vec2, prelude::*};
 use crate::game::{
     animation::AnimationConfig,
     lyra::{
-        controller::{Grounded, MovementInfo},
+        controller::{movement, Grounded, MovementInfo},
         Lyra,
     },
     LevelSystems,
@@ -22,7 +22,12 @@ impl Plugin for LyraAnimationPlugin {
                 .after(set_animation)
                 .in_set(LevelSystems::Simulation),
         );
-        app.add_systems(FixedUpdate, set_animation.in_set(LevelSystems::Simulation));
+        app.add_systems(
+            FixedUpdate,
+            set_animation
+                .after(movement)
+                .in_set(LevelSystems::Simulation),
+        );
     }
 }
 

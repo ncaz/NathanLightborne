@@ -5,17 +5,19 @@ use bevy_ecs_ldtk::systems::process_ldtk_levels;
 use crate::{
     camera::HIGHRES_LAYER,
     game::{
-        animation::SpriteAnimationPlugin, camera_op::CameraOpPlugin, defs::LevelPlugin,
-        lyra::LyraPlugin, setup::LevelSetupPlugin,
+        animation::SpriteAnimationPlugin, camera_op::CameraOpPlugin, cursor::CursorCoordsPlugin,
+        defs::LevelPlugin, lyra::LyraPlugin, setup::LevelSetupPlugin, switch::SwitchLevelPlugin,
     },
     shared::{GameState, PlayState},
 };
 
 mod animation;
 mod camera_op;
+mod cursor;
 mod defs;
 pub mod lyra;
 pub mod setup;
+mod switch;
 // mod input;
 // mod level;
 // mod light;
@@ -28,8 +30,10 @@ pub struct GamePlugin;
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(PhysicsPlugins::default().with_length_unit(8.));
-        // app.add_plugins(PhysicsDebugPlugin);
+        app.add_plugins(PhysicsDebugPlugin);
+        app.add_plugins(CursorCoordsPlugin);
         app.add_plugins(SpriteAnimationPlugin);
+        app.add_plugins(SwitchLevelPlugin);
         app.add_plugins(LevelSetupPlugin);
         app.add_plugins(LyraPlugin);
         app.add_plugins(LevelPlugin);

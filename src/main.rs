@@ -85,8 +85,6 @@ fn main() {
     app.add_sub_state::<PlayState>();
     app.add_sub_state::<AnimationState>();
     // app.add_plugins(DeferredLightingPlugin);
-    // app.add_systems(Startup, init_cursor_world_coords);
-    // app.add_systems(PreUpdate, update_cursor_world_coords);
 
     app.add_observer(
         |event: On<ResourceLoaded>,

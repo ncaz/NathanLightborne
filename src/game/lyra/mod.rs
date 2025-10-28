@@ -7,7 +7,9 @@ use crate::{
         animation::AnimationConfig,
         lyra::{
             animation::{LyraAnimationPlugin, PlayerAnimationType, ANIMATION_FRAMES},
-            controller::{CharacterControllerBundle, CharacterControllerPlugin},
+            controller::{
+                CachedLinearVelocity, CharacterControllerBundle, CharacterControllerPlugin,
+            },
             strand::LyraStrandPlugin,
         },
         Layers,
@@ -95,6 +97,7 @@ pub fn spawn_lyra(
             Rotation::default(),
             Collider::rectangle(12.0, 16.0),
         )])))
+        .insert(CachedLinearVelocity(Vec2::ZERO))
         .insert(PlayerAnimationType::Idle)
         .insert(AnimationConfig::from(PlayerAnimationType::Idle));
 

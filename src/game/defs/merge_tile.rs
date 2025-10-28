@@ -144,7 +144,8 @@ pub fn spawn_merged_tiles<TILE>(
                     let extent = Vec2::new(
                         (tile_rect.right as f32 - tile_rect.left as f32 + 1.) * grid_size as f32,
                         (tile_rect.top as f32 - tile_rect.bottom as f32 + 1.) * grid_size as f32,
-                    );
+                    )
+                    .abs();
                     let center = Vec2::new(
                         (tile_rect.left + tile_rect.right + 1) as f32 * grid_size as f32 / 2.,
                         (tile_rect.bottom + tile_rect.top + 1) as f32 * grid_size as f32 / 2.,

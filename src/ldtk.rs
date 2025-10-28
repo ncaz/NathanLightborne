@@ -76,8 +76,8 @@ impl LdtkParam<'_> {
 
 #[derive(SystemParam)]
 pub struct LdtkLevelParam<'w> {
-    ldtk_param: LdtkParam<'w>,
-    level_selection: ResMut<'w, LevelSelection>,
+    pub ldtk_param: LdtkParam<'w>,
+    pub level_selection: ResMut<'w, LevelSelection>,
 }
 
 impl LdtkLevelParam<'_> {

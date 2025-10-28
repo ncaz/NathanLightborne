@@ -11,6 +11,8 @@ use crate::{
     shared::GameState,
 };
 
+pub const CAMERA_ANIMATION_SECS: f32 = 0.4;
+
 pub struct CameraOpPlugin;
 
 impl Plugin for CameraOpPlugin {
