@@ -12,7 +12,7 @@ use crate::{
         LevelSystems,
     },
     ldtk::{LdtkLevelParam, LevelExt},
-    shared::{AnimationState, PlayState, ResetLevel},
+    shared::{AnimationState, PlayState, ResetLevels},
 };
 
 pub struct SwitchLevelPlugin;
@@ -53,10 +53,8 @@ pub fn switch_level(
             continue;
         }
         if ldtk_level_param
-            .cur_level()
+            .cur_iid()
             .expect("Cur level must exist")
-            .raw()
-            .iid
             .as_str()
             == level.iid
         {
@@ -73,7 +71,7 @@ pub fn switch_level(
                  mut commands: Commands,
                  mut next_game_state: ResMut<NextState<PlayState>>| {
                     next_game_state.set(PlayState::Playing);
-                    commands.trigger(ResetLevel::Switching);
+                    commands.trigger(ResetLevels);
                     commands.entity(event.entity).despawn();
                 },
             )

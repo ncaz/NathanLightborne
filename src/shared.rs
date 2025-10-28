@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy_ecs_ldtk::LevelIid;
 
 #[derive(States, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum GameState {
@@ -37,11 +38,8 @@ pub enum UiState {
     StartMenu,
 }
 
-#[derive(Event, PartialEq, Eq)]
-pub enum ResetLevel {
-    /// Sent to run systems that reset the player state on respawn. If you are trying to kill the
-    /// player, use `KillPlayerEvent` instead
-    Respawn,
-    /// Sent to run systems that reset the level state on level switch
-    Switching,
-}
+#[derive(Event)]
+pub struct ResetLevels;
+
+#[derive(Event)]
+pub struct ResetPlayer;

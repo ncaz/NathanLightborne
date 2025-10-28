@@ -94,4 +94,9 @@ impl LdtkLevelParam<'_> {
                 .find_loaded_level_by_level_selection(&self.level_selection)
         })
     }
+
+    pub fn cur_iid(&self) -> Option<LevelIid> {
+        self.cur_level()
+            .and_then(|level| Some(LevelIid::new(level.raw().iid.as_str())))
+    }
 }

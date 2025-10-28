@@ -90,7 +90,7 @@ pub fn spawn_lyra(
         .entity(player)
         .insert(CollisionLayers::new(
             Layers::PlayerCollider,
-            [Layers::Terrain, Layers::Platform],
+            [Layers::Terrain],
         ))
         .insert(CharacterControllerBundle::new(Collider::compound(vec![(
             Vec2::new(0.0, -2.0),
@@ -115,12 +115,7 @@ pub fn spawn_lyra(
         .insert(Transform::default())
         .insert(CollisionLayers::new(
             Layers::PlayerHurtbox,
-            [
-                Layers::DangerBox,
-                Layers::Terrain,
-                Layers::CrystalShard,
-                Layers::Platform,
-            ],
+            [Layers::DangerBox, Layers::Terrain, Layers::CrystalShard],
         ));
     // .insert(LineLight2d::point(
     //     Vec4::new(1.0, 1.0, 1.0, 1.0),

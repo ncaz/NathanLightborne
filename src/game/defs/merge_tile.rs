@@ -17,7 +17,7 @@ pub trait MergedTile {
     fn bundle(
         commands: &mut EntityCommands,
         center: Vec2,
-        half_extent: Vec2,
+        extent: Vec2,
         compare_data: &Self::CompareData,
     );
 
@@ -26,14 +26,14 @@ pub trait MergedTile {
     fn compare_data(&self) -> Self::CompareData;
 }
 
-pub fn spawn_merged_tiles<TILE>(
+pub fn spawn_merged_tiles<Tile>(
     mut commands: Commands,
-    tile_query: Query<(&GridCoords, &ChildOf, &TILE), Added<TILE>>,
-    parent_query: Query<&ChildOf, Without<TILE>>,
+    tile_query: Query<(&GridCoords, &ChildOf, &Tile), Added<Tile>>,
+    parent_query: Query<&ChildOf, Without<Tile>>,
     level_query: Query<(Entity, &LevelIid)>,
     ldtk_level_param: LdtkLevelParam,
 ) where
-    TILE: MergedTile + Component,
+    Tile: MergedTile + Component,
 {
     if tile_query.is_empty() {
         return;
@@ -53,7 +53,7 @@ pub fn spawn_merged_tiles<TILE>(
 
     let mut level_to_tile_locations: HashMap<
         Entity,
-        HashMap<TILE::CompareData, HashSet<GridCoords>>,
+        HashMap<Tile::CompareData, HashSet<GridCoords>>,
     > = HashMap::new();
 
     tile_query.iter().for_each(|(&grid_coords, parent, tile)| {
@@ -144,13 +144,12 @@ pub fn spawn_merged_tiles<TILE>(
                     let extent = Vec2::new(
                         (tile_rect.right as f32 - tile_rect.left as f32 + 1.) * grid_size as f32,
                         (tile_rect.top as f32 - tile_rect.bottom as f32 + 1.) * grid_size as f32,
-                    )
-                    .abs();
+                    );
                     let center = Vec2::new(
                         (tile_rect.left + tile_rect.right + 1) as f32 * grid_size as f32 / 2.,
                         (tile_rect.bottom + tile_rect.top + 1) as f32 * grid_size as f32 / 2.,
                     );
-                    TILE::bundle(&mut level.spawn_empty(), center, extent, compare_data);
+                    Tile::bundle(&mut level.spawn_empty(), center, extent, compare_data);
                 }
             });
         }

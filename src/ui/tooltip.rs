@@ -1,6 +1,6 @@
 use bevy::{ecs::system::SystemParam, prelude::*};
 
-use crate::{shared::ResetLevel, ui::UiFont};
+use crate::{shared::ResetLevels, ui::UiFont};
 
 use super::follow::WorldSpacePositionTarget;
 
@@ -22,7 +22,7 @@ pub enum TooltipDespawnSetting {
 }
 
 pub fn handle_tooltip_despawns(
-    _: On<ResetLevel>,
+    _: On<ResetLevels>,
     mut commands: Commands,
     mut q_tooltips: Query<(Entity, &mut TooltipDespawnSetting)>,
 ) {

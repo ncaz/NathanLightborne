@@ -74,10 +74,8 @@ pub enum Layers {
     LightRay,
     LightSensor,
     WhiteRay,
-    Strand,
     BlueRay,
     CrystalShard,
-    Platform,
     BlackRay,
 }
 
