@@ -6,7 +6,6 @@ use bevy::{
         render_phase::{
             sort_phase_system, AddRenderCommand, DrawFunctions, ViewSortedRenderPhases,
         },
-        render_resource::{CachedPipelineState, PipelineCache},
         Render, RenderApp, RenderSystems,
     },
 };
@@ -24,8 +23,6 @@ use render::{
     PrepareLineLight2d, RenderAmbientLight2d, RenderLineLight2d, RenderOccluder,
     ResetOccluderStencil,
 };
-
-use crate::game::lighting::line_light::LineLight2dPipeline;
 
 mod ambient_light;
 mod line_light;

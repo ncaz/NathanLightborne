@@ -17,6 +17,7 @@ use crate::{
         LevelSystems,
     },
     ldtk::{LdtkLevelParam, LevelExt},
+    shared::ResetLevels,
 };
 
 const NUM_INCREMENTS: i32 = 16; // The number of angle increments for light beam alignment
@@ -61,6 +62,11 @@ impl Plugin for BeamControllerPlugin {
             )
                 .chain()
                 .in_set(LevelSystems::Simulation),
+        );
+        app.add_observer(
+            |_: On<ResetLevels>, mut lyra: Single<&mut PlayerLightInventory, With<Lyra>>| {
+                **lyra = PlayerLightInventory::new();
+            },
         );
     }
 }
