@@ -12,6 +12,7 @@ use crate::{
             DangerBox,
         },
         lighting::{Occluder2d, Occluder2dDisabled},
+        particle::dust::DustSurface,
         Layers, LevelSystems,
     },
     ldtk::LdtkLevelParam,
@@ -37,13 +38,11 @@ impl Plugin for CrystalPlugin {
             PreUpdate,
             (
                 invalidate_crystal_cache,
-                (
-                    init_crystal_cache_tiles,
-                    spawn_merged_tiles::<Crystal>,
-                    init_crystal_cache_groups,
-                )
-                    .chain(),
+                init_crystal_cache_tiles,
+                spawn_merged_tiles::<Crystal>,
+                init_crystal_cache_groups,
             )
+                .chain()
                 .in_set(LevelSystems::Processing),
         );
         app.add_observer(on_crystal_changed);
@@ -104,13 +103,9 @@ impl MergedTile for Crystal {
         }
 
         commands
+            .insert(DustSurface::Crystal(*crystal_color))
             .insert(Collider::rectangle(extent.x, extent.y))
-            .insert(Occluder2d::new(extent.x / 2., extent.y / 2.));
-        if !crystal_active {
-            commands.insert(ColliderDisabled).insert(Occluder2dDisabled);
-        }
-
-        commands
+            .insert(Occluder2d::new(extent.x / 2., extent.y / 2.))
             .insert(Transform::from_xyz(center.x, center.y, 0.))
             .insert(CrystalGroup(Crystal {
                 init_active: compare_data.1,
@@ -118,6 +113,10 @@ impl MergedTile for Crystal {
                 active: compare_data.1,
             }))
             .insert(DangerBox);
+
+        if !crystal_active {
+            commands.insert(ColliderDisabled).insert(Occluder2dDisabled);
+        }
     }
 
     fn compare_data(&self) -> Self::CompareData {
@@ -136,7 +135,7 @@ pub struct CrystalBundle {
 }
 
 #[derive(Component)]
-pub struct CrystalGroup(Crystal);
+pub struct CrystalGroup(pub Crystal);
 
 #[derive(Debug, Default, Resource)]
 pub struct CrystalCache {

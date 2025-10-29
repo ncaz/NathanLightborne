@@ -3,9 +3,9 @@ use std::time::Duration;
 use bevy::prelude::*;
 
 use crate::{
-    level::crystal::Crystal,
-    lighting::{LineLight2d, Occluder2dGroups},
-    particle::{ParticleAnimationOptions, ParticleOptions},
+    game::defs::crystal::Crystal,
+    game::lighting::{LineLight2d, Occluder2dGroups},
+    game::particle::{ParticleAnimationOptions, ParticleOptions},
 };
 
 use super::{
@@ -13,10 +13,29 @@ use super::{
     Particle,
 };
 
+#[derive(Resource, Asset, Clone, Reflect)]
+#[reflect(Resource)]
+pub struct CrystalShineAssets {
+    #[dependency]
+    shine1: Handle<Image>,
+    shine2: Handle<Image>,
+}
+
+impl FromWorld for CrystalShineAssets {
+    fn from_world(world: &mut World) -> Self {
+        let asset_server = world.resource::<AssetServer>();
+
+        Self {
+            shine1: asset_server.load("particle/shine_1.png"),
+            shine2: asset_server.load("particle/shine_2.png"),
+        }
+    }
+}
+
 pub fn add_crystal_shine(
     mut commands: Commands,
     crystal: Query<(Entity, &Crystal), Changed<Crystal>>,
-    asset_server: Res<AssetServer>,
+    crystal_shine_assets: Res<CrystalShineAssets>,
 ) {
     for (entity, crystal) in crystal.iter() {
         if crystal.active {
@@ -41,7 +60,7 @@ pub fn add_crystal_shine(
                                     repeat: false,
                                 }),
                                 sprite: Sprite {
-                                    image: asset_server.load("particle/shine_1.png"),
+                                    image: crystal_shine_assets.shine1.clone(),
                                     ..default()
                                 },
                                 light: true,
@@ -60,7 +79,7 @@ pub fn add_crystal_shine(
                                     repeat: false,
                                 }),
                                 sprite: Sprite {
-                                    image: asset_server.load("particle/shine_2.png"),
+                                    image: crystal_shine_assets.shine2.clone(),
                                     ..default()
                                 },
                                 light: true,

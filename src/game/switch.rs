@@ -7,7 +7,7 @@ use crate::{
     callback::Callback,
     camera::{CameraControlType, CameraMoveEvent},
     game::{
-        camera_op::{camera_position_from_level, follow_lyra, CAMERA_ANIMATION_SECS},
+        camera_op::{camera_position_from_level, CAMERA_ANIMATION_SECS},
         lyra::Lyra,
         LevelSystems,
     },
@@ -19,12 +19,7 @@ pub struct SwitchLevelPlugin;
 
 impl Plugin for SwitchLevelPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
-            FixedUpdate,
-            switch_level
-                .after(follow_lyra)
-                .in_set(LevelSystems::Simulation),
-        );
+        app.add_systems(FixedUpdate, switch_level.in_set(LevelSystems::Simulation));
     }
 }
 
@@ -62,7 +57,7 @@ pub fn switch_level(
         }
 
         next_play_state.set(PlayState::Animating);
-        next_anim_state.set(AnimationState::Switch);
+        next_anim_state.set(AnimationState::Frozen);
 
         let cb = commands
             .spawn(())
@@ -86,11 +81,6 @@ pub fn switch_level(
             },
         });
 
-        // let allowed_colors = level
-        //     .iter_enums_field("AllowedColors")
-        //     .expect("AllowedColors should be enum array level field.")
-        //     .map(|color_str| color_str.into())
-        //     .collect::<Vec<LightColor>>();
         *ldtk_level_param.level_selection = LevelSelection::iid(LevelIid::new(level.iid.clone()));
         break;
     }

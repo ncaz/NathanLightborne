@@ -11,37 +11,49 @@ use spark::{
     add_segment_sparks, create_spark_explosions, SegmentTransformMap, SparkExplosionEvent,
 };
 
+use crate::{
+    asset::LoadResource,
+    game::{
+        particle::{dust::DustAssets, shine::CrystalShineAssets},
+        LevelSystems,
+    },
+};
+
 pub mod dust;
 pub mod emitter;
 pub mod shine;
 pub mod spark;
-use crate::level::LevelSystems;
+
 pub struct ParticlePlugin;
+
 impl Plugin for ParticlePlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(Wind::new())
-            .insert_resource(DustSpawnStopwatch::default())
-            .insert_resource(SegmentTransformMap::default())
-            .add_event::<SparkExplosionEvent>()
-            .add_systems(Startup, setup)
-            .add_systems(
-                Update,
+        app.register_type::<CrystalShineAssets>();
+        app.load_resource::<CrystalShineAssets>();
+        app.register_type::<DustAssets>();
+        app.load_resource::<DustAssets>();
+        app.insert_resource(Wind::new());
+        app.insert_resource(DustSpawnStopwatch::default());
+        app.insert_resource(SegmentTransformMap::default());
+        app.add_message::<SparkExplosionEvent>();
+        app.add_systems(
+            Update,
+            (
                 (
-                    (
-                        delete_particles,
-                        update_particles,
-                        adjust_crystal_shine_lights,
-                    )
-                        .chain(),
-                    update_particle_emitters,
-                    add_crystal_shine,
-                    spawn_player_walking_dust,
-                    add_crystal_dust,
-                    add_segment_sparks,
-                    create_spark_explosions,
+                    delete_particles,
+                    update_particles,
+                    adjust_crystal_shine_lights,
                 )
-                    .in_set(LevelSystems::Simulation),
-            );
+                    .chain(),
+                update_particle_emitters,
+                add_crystal_shine,
+                spawn_player_walking_dust,
+                add_crystal_dust,
+                add_segment_sparks,
+                create_spark_explosions,
+            )
+                .in_set(LevelSystems::Simulation),
+        );
     }
 }
 
@@ -68,8 +80,6 @@ impl Wind {
         )
     }
 }
-
-fn setup() {}
 
 #[derive(Default, Clone, Debug)]
 pub struct ParticleAnimationOptions {
@@ -158,7 +168,7 @@ impl ParticleBundle {
 
 fn delete_particles(mut commands: Commands, particles: Query<(Entity, &Particle)>) {
     for (entity, particle) in particles.iter() {
-        if particle.life_timer.finished() {
+        if particle.life_timer.is_finished() {
             commands.entity(entity).despawn();
         }
     }

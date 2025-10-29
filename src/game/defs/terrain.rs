@@ -1,9 +1,10 @@
 use avian2d::prelude::*;
-use bevy::{color::palettes::css::RED, prelude::*};
+use bevy::prelude::*;
 use bevy_ecs_ldtk::prelude::*;
 
 use crate::game::{
-    defs::merge_tile::spawn_merged_tiles, lighting::Occluder2d, Layers, LevelSystems,
+    defs::merge_tile::spawn_merged_tiles, lighting::Occluder2d, particle::dust::DustSurface,
+    Layers, LevelSystems,
 };
 
 use super::merge_tile::MergedTile;
@@ -40,15 +41,11 @@ impl MergedTile for Terrain {
         commands
             .insert(Collider::rectangle(extent.x, extent.y))
             .insert(Occluder2d::new(extent.x / 2., extent.y / 2.))
-            .insert(
-                // DustSurface::Wall,
-                CollisionLayers::new(Layers::Terrain, [Layers::PlayerCollider, Layers::LightRay]),
-            )
-            .insert(Sprite {
-                color: RED.into(),
-                custom_size: Some(extent),
-                ..default()
-            })
+            .insert(DustSurface::Wall)
+            .insert(CollisionLayers::new(
+                Layers::Terrain,
+                [Layers::PlayerCollider, Layers::LightRay],
+            ))
             .insert(Transform::from_xyz(center.x, center.y, 0.));
     }
 

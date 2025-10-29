@@ -2,7 +2,7 @@ use avian2d::{math::*, prelude::*};
 use bevy::{ecs::query::Has, prelude::*};
 
 use crate::{
-    game::{lyra::Lyra, Layers, LevelSystems},
+    game::{lyra::Lyra, LevelSystems},
     shared::PlayState,
 };
 
@@ -29,7 +29,7 @@ pub struct CharacterControllerPlugin;
 impl Plugin for CharacterControllerPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<MovementAction>();
-        app.add_systems(Update, keyboard_input);
+        app.add_systems(Update, keyboard_input.in_set(LevelSystems::Input));
         app.add_systems(
             FixedUpdate,
             update_grounded
@@ -82,17 +82,6 @@ pub struct CharacterController;
 #[component(storage = "SparseSet")]
 pub struct Grounded;
 
-/// A bundle that contains the components needed for a basic
-/// kinematic character controller.
-#[derive(Bundle)]
-pub struct CharacterControllerBundle {
-    character_controller: CharacterController,
-    body: RigidBody,
-    collider: Collider,
-    ground_caster: ShapeCaster,
-    movement: MovementInfo,
-}
-
 /// A bundle that contains components for character movement.
 #[derive(Component, Default)]
 pub struct MovementInfo {
@@ -100,24 +89,6 @@ pub struct MovementInfo {
     pub coyote_time_ticks: isize,
     pub jump_boost_ticks: isize,
     pub crouched: bool,
-}
-
-impl CharacterControllerBundle {
-    pub fn new(collider: Collider) -> Self {
-        // Create shape caster as a slightly smaller version of collider
-        let mut caster_shape = collider.clone();
-        caster_shape.set_scale(Vector::ONE * 0.99, 10);
-
-        Self {
-            character_controller: CharacterController,
-            body: RigidBody::Kinematic,
-            collider,
-            ground_caster: ShapeCaster::new(caster_shape, Vector::ZERO, 0.0, Dir2::NEG_Y)
-                .with_max_distance(0.5)
-                .with_query_filter(SpatialQueryFilter::default().with_mask([Layers::Terrain])),
-            movement: MovementInfo::default(),
-        }
-    }
 }
 
 pub fn keyboard_input(
@@ -165,10 +136,15 @@ pub fn update_grounded(
 pub fn movement(
     time: Res<Time>,
     mut movement_reader: MessageReader<MovementAction>,
-    mut controllers: Query<(&mut MovementInfo, &mut LinearVelocity, Has<Grounded>)>,
+    mut controllers: Query<(
+        &mut MovementInfo,
+        &mut LinearVelocity,
+        &ShapeHits,
+        Has<Grounded>,
+    )>,
 ) {
     let delta = time.delta_secs() * 64.;
-    for (mut movement_info, mut linear_velocity, is_grounded) in &mut controllers {
+    for (mut movement_info, mut linear_velocity, shape_hits, is_grounded) in &mut controllers {
         if is_grounded {
             movement_info.coyote_time_ticks = COYOTE_TIME_TICKS;
         }
@@ -200,9 +176,12 @@ pub fn movement(
             movement_info.jump_boost_ticks = JUMP_BOOST_TICKS;
         }
 
+        let too_close = shape_hits.iter().any(|hit| hit.distance < 0.25);
         if movement_info.jump_boost_ticks > 0 {
             linear_velocity.y = PLAYER_JUMP_VEL * 64.;
-        } else if is_grounded {
+        } else if too_close && linear_velocity.y < 0.5 {
+            linear_velocity.y = 0.45;
+        } else if is_grounded && linear_velocity.y < 0.5 {
             linear_velocity.y = 0.;
         } else {
             linear_velocity.y -= PLAYER_GRAVITY * 64. * delta;

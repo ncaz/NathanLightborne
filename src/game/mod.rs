@@ -5,11 +5,18 @@ use bevy_ecs_ldtk::systems::process_ldtk_levels;
 use crate::{
     camera::HIGHRES_LAYER,
     game::{
-        animation::SpriteAnimationPlugin, camera_op::CameraOpPlugin, cursor::CursorCoordsPlugin,
-        defs::LevelPlugin, light::LightBeamPlugin, lighting::DeferredLightingPlugin,
-        lyra::LyraPlugin, setup::LevelSetupPlugin, switch::SwitchLevelPlugin,
+        animation::SpriteAnimationPlugin,
+        camera_op::CameraOpPlugin,
+        cursor::CursorCoordsPlugin,
+        defs::{one_way_platform::OneWayPlatformHooks, LevelPlugin},
+        light::LightBeamPlugin,
+        lighting::DeferredLightingPlugin,
+        lyra::LyraPlugin,
+        particle::ParticlePlugin,
+        setup::LevelSetupPlugin,
+        switch::SwitchLevelPlugin,
     },
-    shared::{GameState, PlayState},
+    shared::{AnimationState, GameState, PlayState},
 };
 
 mod animation;
@@ -24,14 +31,18 @@ mod switch;
 // mod level;
 // mod light;
 pub mod lighting;
-// mod particle;
+mod particle;
 // mod player;
 
 pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(PhysicsPlugins::default().with_length_unit(8.));
+        app.add_plugins(
+            PhysicsPlugins::default()
+                .with_length_unit(8.)
+                .with_collision_hooks::<OneWayPlatformHooks>(),
+        );
         app.add_plugins(PhysicsDebugPlugin);
         app.add_plugins(CursorCoordsPlugin);
         app.add_plugins(SpriteAnimationPlugin);
@@ -40,6 +51,7 @@ impl Plugin for GamePlugin {
         app.add_plugins(LyraPlugin);
         app.add_plugins(LevelPlugin);
         app.add_plugins(CameraOpPlugin);
+        app.add_plugins(ParticlePlugin);
         app.add_plugins(LightBeamPlugin);
         app.add_plugins(DeferredLightingPlugin);
         app.configure_sets(
@@ -50,11 +62,21 @@ impl Plugin for GamePlugin {
         );
         app.configure_sets(
             Update,
-            LevelSystems::Simulation.run_if(in_state(PlayState::Playing)),
+            LevelSystems::Input.run_if(in_state(PlayState::Playing)),
         );
         app.configure_sets(
             FixedUpdate,
-            LevelSystems::Simulation.run_if(in_state(PlayState::Playing)),
+            LevelSystems::Input.run_if(in_state(PlayState::Playing)),
+        );
+        app.configure_sets(
+            Update,
+            LevelSystems::Simulation
+                .run_if(in_state(PlayState::Playing).or(in_state(AnimationState::InputLocked))),
+        );
+        app.configure_sets(
+            FixedUpdate,
+            LevelSystems::Simulation
+                .run_if(in_state(PlayState::Playing).or(in_state(AnimationState::InputLocked))),
         );
         app.insert_gizmo_config(
             PhysicsGizmos::default(),
@@ -73,12 +95,12 @@ pub enum Layers {
     Default,
     PlayerCollider,
     PlayerHurtbox,
-    DangerBox,
-    Terrain,
     LightRay,
-    LightSensor,
     WhiteRay,
     BlueRay,
+    DangerBox,
+    Terrain,
+    LightSensor,
     CrystalShard,
     // BlackRay,
 }
@@ -89,4 +111,5 @@ pub enum LevelSystems {
     Simulation,
     /// Non-trigger systems that are used to process ldtk entities. Prefer to use triggers.
     Processing,
+    Input,
 }

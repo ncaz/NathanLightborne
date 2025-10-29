@@ -126,7 +126,7 @@ impl From<&EntityInstance> for LightSensor {
     }
 }
 
-type ButtonColor = Color;
+pub type ButtonColor = Color;
 
 impl From<CrystalColor> for ButtonColor {
     fn from(value: CrystalColor) -> Self {

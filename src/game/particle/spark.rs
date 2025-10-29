@@ -1,12 +1,13 @@
 use std::time::Duration;
 
-use bevy::{prelude::*, utils::HashMap};
+use bevy::{platform::collections::HashMap, prelude::*};
 
-use crate::{light::segments::LightSegment, particle::emitter::ParticleModifier};
-
-use super::{
-    ParticleBundle, ParticleEmitter, ParticleEmitterArea, ParticleEmitterOptions, ParticleOptions,
-    ParticlePhysicsOptions,
+use crate::{
+    game::light::segments::LightSegment,
+    game::particle::{
+        emitter::ParticleModifier, ParticleBundle, ParticleEmitter, ParticleEmitterArea,
+        ParticleEmitterOptions, ParticleOptions, ParticlePhysicsOptions,
+    },
 };
 
 #[derive(Resource, Default)]
@@ -33,7 +34,6 @@ pub fn add_segment_sparks(
         if let Some(children) = children {
             let emitter_children: Vec<_> = children
                 .iter()
-                .cloned()
                 .filter(|&child| q_emitter.contains(child))
                 .collect();
             commands.entity(entity).remove_children(&emitter_children);
@@ -75,7 +75,7 @@ pub fn add_segment_sparks(
     }
 }
 
-#[derive(Event)]
+#[derive(Message)]
 pub struct SparkExplosionEvent {
     pub pos: Vec2,
     pub color: Color,
@@ -83,7 +83,7 @@ pub struct SparkExplosionEvent {
 
 pub fn create_spark_explosions(
     mut commands: Commands,
-    mut spark_explosion_events: EventReader<SparkExplosionEvent>,
+    mut spark_explosion_events: MessageReader<SparkExplosionEvent>,
     asset_server: Res<AssetServer>,
 ) {
     const VEL: f32 = 50.0;

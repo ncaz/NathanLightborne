@@ -13,6 +13,7 @@ use crate::{
             segments::{play_light_beam, PrevLightBeamPlayback},
             LightBeamSource, LightColor,
         },
+        lighting::LineLight2d,
         lyra::Lyra,
         LevelSystems,
     },
@@ -31,41 +32,35 @@ impl Plugin for BeamControllerPlugin {
         app.add_message::<BeamAction>();
         app.add_systems(
             Update,
-            (
-                handle_color_switch,
-                handle_shoot_inputs,
-                preview_light_path,
-                process_beam_actions,
-                // spawn_angle_indicator.run_if(
-                //     input_just_pressed(MouseButton::Left).or((input_just_released(
-                //         KeyCode::ShiftLeft,
-                //     )
-                //     .or(input_just_released(KeyCode::ShiftRight)))
-                //     .and(input_pressed(MouseButton::Left))),
-                // ),
-                // despawn_angle_indicator.run_if(
-                //     input_just_released(MouseButton::Left)
-                //         .or(input_just_pressed(MouseButton::Right))
-                //         .or(input_just_pressed(KeyCode::ShiftLeft))
-                //         .or(input_just_pressed(KeyCode::ShiftRight)),
-                // ),
-                // spawn_angle_increments_indicators.run_if(
-                //     input_just_pressed(KeyCode::ShiftLeft)
-                //         .or(input_just_pressed(KeyCode::ShiftRight))
-                //         .and(input_pressed(MouseButton::Left)),
-                // ),
-                // despawn_angle_increments_indicators.run_if(
-                //     input_just_released(KeyCode::ShiftLeft)
-                //         .or(input_just_released(KeyCode::ShiftRight))
-                //         .or(input_just_pressed(MouseButton::Right)),
-                // ),
-            )
+            (handle_color_switch, handle_shoot_inputs, preview_light_path)
                 .chain()
+                .in_set(LevelSystems::Input),
+        );
+        app.add_systems(
+            Update,
+            process_beam_actions
+                .after(preview_light_path)
                 .in_set(LevelSystems::Simulation),
         );
         app.add_observer(
-            |_: On<ResetLevels>, mut lyra: Single<&mut PlayerLightInventory, With<Lyra>>| {
-                **lyra = PlayerLightInventory::new();
+            |_: On<ResetLevels>,
+             mut inventory: Single<&mut PlayerLightInventory, With<Lyra>>,
+             ldtk_level_param: LdtkLevelParam| {
+                let allowed_cols = ldtk_level_param
+                    .cur_level()
+                    .expect("Cur level should exist")
+                    .raw()
+                    .allowed_colors();
+                let old_color = inventory.current_color;
+
+                **inventory = PlayerLightInventory::new();
+
+                // if the new level has the current color as an allowed color, preserve it
+                if let Some(color) = old_color {
+                    if allowed_cols[color] {
+                        inventory.current_color = old_color;
+                    }
+                }
             },
         );
     }
@@ -318,11 +313,12 @@ pub fn process_beam_actions(
                     .insert(HIGHRES_LAYER)
                     .insert(source_sprite)
                     .insert(source_transform)
-                    .with_child((outer_source_sprite, HIGHRES_LAYER));
-                // .with_child((
-                //     LineLight2d::point(shoot_color.lighting_color().extend(1.0), 30.0, 0.02),
-                //     TERRAIN_LAYER,
-                // ));
+                    .with_child((outer_source_sprite, HIGHRES_LAYER))
+                    .with_child(LineLight2d::point(
+                        shoot_color.lighting_color().extend(1.0),
+                        30.0,
+                        0.02,
+                    ));
 
                 player_inventory.sources[shoot_color] = false;
                 player_inventory.should_shoot = false;

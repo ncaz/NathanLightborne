@@ -1,14 +1,9 @@
-use avian2d::prelude::PhysicsSystems;
 use bevy::prelude::*;
 
 use crate::{
     camera::{CameraControlType, CameraMoveEvent, MainCamera, CAMERA_HEIGHT, CAMERA_WIDTH},
-    game::{
-        lyra::{spawn_lyra, Lyra},
-        LevelSystems,
-    },
+    game::{lyra::Lyra, LevelSystems},
     ldtk::{LdtkLevelParam, LevelExt},
-    shared::GameState,
 };
 
 pub const CAMERA_ANIMATION_SECS: f32 = 0.4;
@@ -17,14 +12,30 @@ pub struct CameraOpPlugin;
 
 impl Plugin for CameraOpPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(OnEnter(GameState::InGame), follow_lyra.after(spawn_lyra));
-        app.add_systems(
-            FixedPostUpdate,
-            follow_lyra
-                .in_set(LevelSystems::Simulation)
-                .after(PhysicsSystems::Writeback),
-        );
+        app.add_systems(FixedUpdate, follow_lyra.in_set(LevelSystems::Simulation));
+        app.add_observer(snap_to_lyra);
     }
+}
+
+#[derive(Event)]
+pub struct SnapToLyra;
+
+pub fn snap_to_lyra(
+    _: On<SnapToLyra>,
+    mut commands: Commands,
+    lyra: Single<&Transform, With<Lyra>>,
+    ldtk_level_param: LdtkLevelParam,
+) {
+    let cur_level = ldtk_level_param
+        .cur_level()
+        .expect("Current level should exist!")
+        .raw();
+
+    let camera_pos = camera_position_from_level(cur_level.level_box(), lyra.translation.xy());
+    commands.trigger(CameraMoveEvent {
+        to: camera_pos,
+        variant: CameraControlType::Instant,
+    });
 }
 
 pub fn follow_lyra(

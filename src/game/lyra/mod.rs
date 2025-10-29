@@ -7,13 +7,17 @@ use crate::{
     camera::{build_render_target, HIGHRES_LAYER, LYRA_LAYER},
     game::{
         animation::AnimationConfig,
+        camera_op::SnapToLyra,
+        defs::one_way_platform::PassThroughOneWayPlatform,
         lighting::LineLight2d,
         lyra::{
             animation::{LyraAnimationPlugin, PlayerAnimationType, ANIMATION_FRAMES},
             beam::{BeamControllerPlugin, PlayerLightInventory},
             controller::{
-                CachedLinearVelocity, CharacterControllerBundle, CharacterControllerPlugin,
+                CachedLinearVelocity, CharacterController, CharacterControllerPlugin, MovementInfo,
             },
+            kill::{KillPlayer, LyraKillPlugin},
+            restart_hint::HintRestartPlugin,
             strand::LyraStrandPlugin,
         },
         Layers,
@@ -23,11 +27,13 @@ use crate::{
 };
 
 mod animation;
-mod beam;
-mod controller;
+pub mod beam;
+pub mod controller;
+mod kill;
+mod restart_hint;
 mod strand;
 
-pub const LYRA_RESPAWN_EPSILON: f32 = 16.0;
+pub const LYRA_RESPAWN_EPSILON: f32 = 3.0;
 
 pub struct LyraPlugin;
 
@@ -38,7 +44,9 @@ impl Plugin for LyraPlugin {
         app.add_plugins(CharacterControllerPlugin);
         app.add_plugins(LyraStrandPlugin);
         app.add_plugins(LyraAnimationPlugin);
+        app.add_plugins(LyraKillPlugin);
         app.add_plugins(BeamControllerPlugin);
+        app.add_plugins(HintRestartPlugin);
         app.add_systems(OnEnter(GameState::InGame), spawn_lyra);
         app.add_systems(OnEnter(GameState::InGame), spawn_lyra_cam.after(spawn_lyra));
         app.add_systems(OnExit(GameState::InGame), despawn_lyra);
@@ -48,14 +56,10 @@ impl Plugin for LyraPlugin {
 #[derive(Component)]
 pub struct Lyra;
 
-pub fn spawn_lyra(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
-    ldtk_level_param: LdtkLevelParam,
-) {
-    info!("Spawning Lyra!");
+#[derive(Component)]
+pub struct LyraHurtBox;
 
+pub fn lyra_spawn_transform(ldtk_level_param: &LdtkLevelParam) -> Vec2 {
     let Some(lyra_transform) = ldtk_level_param.cur_level().and_then(|level| {
         level
             .raw()
@@ -64,7 +68,18 @@ pub fn spawn_lyra(
     }) else {
         panic!("Current level must exist and it must have a start flag");
     };
+    lyra_transform
+}
 
+pub fn spawn_lyra(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
+    ldtk_level_param: LdtkLevelParam,
+) {
+    info!("Spawning Lyra!");
+
+    let lyra_transform = lyra_spawn_transform(&ldtk_level_param);
     // NOTE: actual z value doesn't matter because lyra is rendered on a separate layer
     let player = commands
         .spawn(Lyra)
@@ -98,14 +113,29 @@ pub fn spawn_lyra(
             Layers::PlayerCollider,
             [Layers::Terrain],
         ))
-        .insert(CharacterControllerBundle::new(Collider::compound(vec![(
+        .insert(CharacterController)
+        .insert(RigidBody::Kinematic)
+        .insert(Collider::compound(vec![(
             Vec2::new(0.0, -2.0),
             Rotation::default(),
             Collider::rectangle(12.0, 16.0),
-        )])))
+        )]))
+        .insert(MovementInfo::default())
+        .insert(
+            ShapeCaster::new(
+                Collider::rectangle(11.0, 0.5),
+                Vec2::new(0., -9.75),
+                0.0,
+                Dir2::NEG_Y,
+            )
+            .with_max_distance(0.5)
+            .with_max_hits(10)
+            .with_query_filter(SpatialQueryFilter::default().with_mask([Layers::Terrain])),
+        )
         .insert(CachedLinearVelocity(Vec2::ZERO))
         .insert(PlayerLightInventory::new())
         .insert(PlayerAnimationType::Idle)
+        .insert(PassThroughOneWayPlatform::ByNormal)
         .insert(AnimationConfig::from(PlayerAnimationType::Idle));
 
     commands
@@ -114,21 +144,28 @@ pub fn spawn_lyra(
             Rotation::default(),
             Collider::rectangle(8.0, 10.0),
         )]))
+        .insert(CollisionEventsEnabled)
         .insert(Sensor)
         .insert(ChildOf(player))
-        .insert(RigidBody::Static)
         .insert(GravityScale(0.0))
-        // .insert(PlayerHurtMarker)
+        .insert(LyraHurtBox)
         .insert(Transform::default())
         .insert(CollisionLayers::new(
             Layers::PlayerHurtbox,
-            [Layers::DangerBox, Layers::Terrain, Layers::CrystalShard],
+            [Layers::DangerBox, Layers::CrystalShard],
         ))
         .insert(LineLight2d::point(
             Vec4::new(1.0, 1.0, 1.0, 1.0),
             40.0,
             0.01,
-        ));
+        ))
+        .observe(|_: On<CollisionStart>, mut commands: Commands| {
+            // NOTE: if the collider shouldn't kill lyra if intersecting, then dont put it in
+            // layers
+            commands.trigger(KillPlayer);
+        });
+
+    commands.trigger(SnapToLyra);
 }
 
 #[derive(Component)]

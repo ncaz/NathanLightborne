@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use bevy_ecs_ldtk::LevelIid;
 
 #[derive(States, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum GameState {
@@ -21,12 +20,8 @@ pub enum PlayState {
 #[source(PlayState = PlayState::Animating)]
 pub enum AnimationState {
     #[default]
-    Switch,
-    Respawn,
-    Shard,
-    ShardDialogue, // FIXME: copied to shit LOL
-    Cruciera,
-    CrucieraDialogue,
+    Frozen,
+    InputLocked,
 }
 
 #[derive(SubStates, Default, Debug, Clone, PartialEq, Eq, Hash)]

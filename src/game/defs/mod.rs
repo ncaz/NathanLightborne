@@ -1,12 +1,14 @@
 use bevy::prelude::*;
 
 use crate::game::defs::{
-    crystal::CrystalPlugin, sensor::LightSensorPlugin, terrain::TerrainPlugin,
+    crystal::CrystalPlugin, one_way_platform::OneWayPlatformPlugin, sensor::LightSensorPlugin,
+    terrain::TerrainPlugin,
 };
 
-mod crystal;
+pub mod crystal;
 mod merge_tile;
-mod sensor;
+pub mod one_way_platform;
+pub mod sensor;
 mod terrain;
 
 pub struct LevelPlugin;
@@ -16,6 +18,7 @@ impl Plugin for LevelPlugin {
         app.add_plugins(TerrainPlugin);
         app.add_plugins(CrystalPlugin);
         app.add_plugins(LightSensorPlugin);
+        app.add_plugins(OneWayPlatformPlugin);
     }
 }
 

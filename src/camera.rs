@@ -20,7 +20,6 @@ pub const CAMERA_HEIGHT: u32 = 180;
 pub const TERRAIN_LAYER: RenderLayers = RenderLayers::layer(0);
 pub const LYRA_LAYER: RenderLayers = RenderLayers::layer(1);
 pub const HIGHRES_LAYER: RenderLayers = RenderLayers::layer(2);
-pub const TRANSITION_LAYER: RenderLayers = RenderLayers::layer(5);
 
 /// The [`Plugin`] responsible for handling anything Camera related.
 pub struct CameraPlugin;
@@ -29,10 +28,13 @@ impl Plugin for CameraPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<CameraAnimations>();
         app.add_systems(Startup, setup_camera);
+        app.add_systems(Startup, setup_transition_node);
         app.add_systems(Update, animate_camera_zoom);
         app.add_systems(Update, animate_camera_move);
+        app.add_systems(Update, animate_transition);
         app.add_observer(handle_zoom_camera);
         app.add_observer(handle_move_camera);
+        app.add_observer(handle_transition_camera);
         app.add_systems(
             PostUpdate,
             apply_camera_snapping.before(TransformSystems::Propagate),
@@ -42,12 +44,6 @@ impl Plugin for CameraPlugin {
 
 #[derive(Component, Default)]
 pub struct MainCamera;
-
-// #[derive(Component)]
-// pub struct TransitionCamera;
-//
-// #[derive(Component)]
-// pub struct TransitionMeshMarker;
 
 #[derive(Component)]
 #[require(Transform)]
@@ -119,46 +115,6 @@ pub fn build_render_target(width: u32, height: u32) -> (Image, Projection) {
     (canvas, projection)
 }
 
-// pub fn setup_transition_camera(
-//     mut commands: Commands,
-//     mut meshes: ResMut<Assets<Mesh>>,
-//     mut materials: ResMut<Assets<ColorMaterial>>,
-// ) {
-//     let projection = OrthographicProjection {
-//         scaling_mode: bevy::camera::ScalingMode::Fixed {
-//             width: CAMERA_WIDTH as f32,
-//             height: CAMERA_HEIGHT as f32,
-//         },
-//         ..OrthographicProjection::default_2d()
-//     };
-//
-//     commands.spawn((
-//         Camera2d,
-//         TransitionCamera,
-//         Camera {
-//             order: 3,
-//             clear_color: ClearColorConfig::None,
-//             ..default()
-//         },
-//         projection.clone(),
-//         Transform::default(),
-//         TRANSITION_LAYER,
-//     ));
-//
-//     commands.spawn((
-//         Mesh2d(meshes.add(Rectangle::new(CAMERA_WIDTH as f32, CAMERA_HEIGHT as f32))),
-//         MeshMaterial2d(materials.add(Color::BLACK)),
-//         // send to narnia, should be moved by any animations using it
-//         Transform::from_xyz(10000.0, 10000.0, 0.0),
-//         TransitionMeshMarker,
-//         TRANSITION_LAYER,
-//     ));
-// }
-//
-/// [`Startup`] [`System`] that spawns the [`Camera2d`] in the world.
-///
-/// Notes:
-/// - Spawns the camera with [`OrthographicProjection`] with fixed scaling at 320x180
 pub fn setup_camera(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
     let projection = Projection::Orthographic(OrthographicProjection {
         scaling_mode: bevy::camera::ScalingMode::Fixed {
@@ -213,19 +169,19 @@ pub fn setup_camera(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
         .with_child((Sprite::from_image(terrain_handle.clone()), HIGHRES_LAYER));
 }
 
-// #[derive(Debug)]
-// pub enum CameraTransition {
-//     SlideToBlack,
-//     SlideFromBlack,
-// }
-//
-// #[derive(Event, Debug)]
-// pub struct CameraTransitionEvent {
-//     pub duration: Duration,
-//     pub ease_fn: EaseFunction,
-//     pub callback: Option<SystemId>,
-//     pub effect: CameraTransition,
-// }
+#[derive(Debug)]
+pub enum CameraTransition {
+    SlideToBlack,
+    SlideFromBlack,
+}
+
+#[derive(Event, Debug)]
+pub struct CameraTransitionEvent {
+    pub duration: Duration,
+    pub ease_fn: EaseFunction,
+    pub callback_entity: Option<Entity>,
+    pub effect: CameraTransition,
+}
 
 #[derive(Debug)]
 pub enum CameraControlType {
@@ -262,76 +218,69 @@ pub struct CameraAnimationInfo<LERP: Sized> {
 pub struct CameraAnimations {
     translation: Option<CameraAnimationInfo<Vec3>>,
     zoom: Option<CameraAnimationInfo<f32>>,
+    transition: Option<CameraAnimationInfo<f32>>,
 }
 
-// pub fn animate_transition(
-//     mut commands: Commands,
-//     mut transition_mesh: Single<&mut Transform, With<TransitionMeshMarker>>,
-//     mut animation: Local<Option<CameraAnimationInfo<Vec3>>>,
-//     time: Res<Time>,
-// ) {
-//     let Some(mut anim) = *animation else {
-//         return;
-//     };
-//     anim.progress.tick(time.delta());
-//     let percent = anim.progress.elapsed_secs() / anim.progress.duration().as_secs_f32();
-//     mesh_transform.translation = anim
-//         .start
-//         .lerp(anim.end, anim.curve.sample_clamped(percent));
-//
-//     if anim.progress.just_finished() {
-//         if anim.callback.is_some() {
-//             commands.run_system(anim.callback.unwrap());
-//         }
-//         *animation = None;
-//     }
-// }
-//
-// pub fn on_transition(
-//     event: On<CameraTransitionEvent>,
-//     mut commands: Commands,
-//     mut q_transition_mesh: Query<&mut Transform, With<TransitionMeshMarker>>,
-//     mut animation: Local<Option<CameraAnimationInfo<Vec3>>>,
-//     time: Res<Time>,
-// ) {
-//     let Ok(mut mesh_transform) = q_transition_mesh.single_mut() else {
-//         return;
-//     };
-//
-//     let mut anim = match event.effect {
-//         CameraTransition::SlideFromBlack => CameraAnimationInfo {
-//             progress: Timer::new(event.duration, TimerMode::Once),
-//             start: Vec3::new(0.0, 0.0, 0.0),
-//             end: Vec3::new(0.0, -(CAMERA_HEIGHT as f32), 0.0),
-//             curve: EasingCurve::new(0.0, 1.0, event.ease_fn),
-//             callback: event.callback,
-//         },
-//         CameraTransition::SlideToBlack => CameraAnimationInfo {
-//             progress: Timer::new(event.duration, TimerMode::Once),
-//             start: Vec3::new(0.0, CAMERA_HEIGHT as f32, 0.0),
-//             end: Vec3::new(0.0, 0.0, 0.0),
-//             curve: EasingCurve::new(0.0, 1.0, event.ease_fn),
-//             callback: event.callback,
-//         },
-//     };
-//     *animation = Some(anim);
-//
-//     let Some(mut anim) = *animation else {
-//         return;
-//     };
-//     anim.progress.tick(time.delta());
-//     let percent = anim.progress.elapsed_secs() / anim.progress.duration().as_secs_f32();
-//     mesh_transform.translation = anim
-//         .start
-//         .lerp(anim.end, anim.curve.sample_clamped(percent));
-//
-//     if anim.progress.just_finished() {
-//         if anim.callback.is_some() {
-//             commands.run_system(anim.callback.unwrap());
-//         }
-//         *animation = None;
-//     }
-// }
+#[derive(Component)]
+pub struct TransitionNode;
+
+pub fn setup_transition_node(mut commands: Commands) {
+    commands
+        .spawn(TransitionNode)
+        .insert(Node {
+            width: Val::Percent(100.),
+            height: Val::Percent(100.),
+            position_type: PositionType::Absolute,
+            top: Val::Percent(-100.),
+            ..default()
+        })
+        .insert(BackgroundColor(Color::BLACK));
+}
+
+pub fn handle_transition_camera(
+    event: On<CameraTransitionEvent>,
+    mut animations: ResMut<CameraAnimations>,
+) {
+    let (start, end) = match event.effect {
+        CameraTransition::SlideToBlack => (-100., 0.),
+        CameraTransition::SlideFromBlack => (0., 100.),
+    };
+    let anim = CameraAnimationInfo {
+        progress: Timer::new(event.duration, TimerMode::Once),
+        start,
+        end,
+        curve: EasingCurve::new(0.0, 1.0, event.ease_fn),
+        callback_entity: event.callback_entity,
+    };
+    animations.transition = Some(anim);
+}
+
+pub fn animate_transition(
+    mut commands: Commands,
+    mut transition_node: Single<&mut Node, With<TransitionNode>>,
+    mut animations: ResMut<CameraAnimations>,
+    time: Res<Time>,
+) {
+    let Some(ref mut anim) = animations.transition else {
+        return;
+    };
+    anim.progress.tick(time.delta());
+    let percent = anim.progress.elapsed_secs() / anim.progress.duration().as_secs_f32();
+
+    transition_node.top = Val::Percent(
+        anim.start
+            .lerp(anim.end, anim.curve.sample_clamped(percent)),
+    );
+
+    if anim.progress.just_finished() {
+        if let Some(callback_entity) = anim.callback_entity {
+            commands.trigger(Callback {
+                entity: callback_entity,
+            });
+        }
+        animations.transition = None;
+    }
+}
 
 pub fn handle_move_camera(
     event: On<CameraMoveEvent>,

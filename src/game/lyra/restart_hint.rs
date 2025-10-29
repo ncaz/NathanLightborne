@@ -3,11 +3,13 @@ use std::time::Duration;
 use bevy::prelude::*;
 
 use crate::{
-    level::{CurrentLevel, LevelSystems},
+    game::{
+        lyra::{beam::PlayerLightInventory, Lyra},
+        LevelSystems,
+    },
+    ldtk::{LdtkLevelParam, LevelExt},
     ui::tooltip::{TooltipDespawnSetting, TooltipSpawner},
 };
-
-use super::{light::PlayerLightInventory, PlayerMarker};
 
 const PLAYER_STUCK_TOOLTIP_DELAY_SECS: u64 = 5;
 
@@ -34,23 +36,23 @@ impl Default for HintRestartTimer {
 pub fn hint_restart_button(
     mut tooltip_spawner: TooltipSpawner,
     mut triggered: Local<HintRestartTimer>,
-    q_player: Query<(Entity, &PlayerLightInventory), With<PlayerMarker>>,
+    lyra: Single<(Entity, &PlayerLightInventory), With<Lyra>>,
     time: Res<Time>,
-    current_level: Res<CurrentLevel>,
+    ldtk_level_param: LdtkLevelParam,
 ) {
-    let Ok((player_entity, player_inventory)) = q_player.get_single() else {
-        return;
-    };
+    let (lyra, inventory) = lyra.into_inner();
 
-    let has_color = current_level
-        .allowed_colors
-        .iter()
-        .any(|(_, allowed)| *allowed);
+    let allowed_colors = ldtk_level_param
+        .cur_level()
+        .expect("Cur level must exist")
+        .raw()
+        .allowed_colors();
 
-    let can_shoot = player_inventory
+    let has_color = allowed_colors.iter().any(|(_, allowed)| *allowed);
+    let can_shoot = inventory
         .sources
         .iter()
-        .any(|(color, has_shot)| current_level.allowed_colors[color] && *has_shot);
+        .any(|(color, has_shot)| allowed_colors[color] && *has_shot);
 
     if !can_shoot && has_color {
         triggered.tick(time.delta());
@@ -59,7 +61,7 @@ pub fn hint_restart_button(
             triggered.pause();
             tooltip_spawner.spawn_tooltip(
                 "Stuck? Press R to restart",
-                player_entity,
+                lyra,
                 Vec3::new(0., 20., 0.),
                 TooltipDespawnSetting::LevelSwitch,
             );

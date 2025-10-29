@@ -5,18 +5,20 @@ use bevy::{
 };
 
 use enum_map::Enum;
-use render::{LightMaterial, LightRenderData};
-use segments::{
-    cleanup_light_sources, simulate_light_sources, spawn_needed_segments, tick_light_sources,
-    visually_sync_segments, LightSegmentCache, PrevLightBeamPlayback,
-};
 
 use crate::{
     asset::LoadResource,
-    game::{light::segments::LightBounceSfx, Layers, LevelSystems},
+    game::{
+        light::{
+            render::{LightMaterial, LightRenderData},
+            segments::{
+                cleanup_light_segments, cleanup_light_sources, simulate_light_sources,
+                tick_light_sources, LightBounceSfx, PrevLightBeamPlayback,
+            },
+        },
+        Layers, LevelSystems,
+    },
 };
-
-// use crate::{level::LevelSystems, lighting::LineLight2d};
 
 mod render;
 pub mod segments;
@@ -36,22 +38,19 @@ impl Plugin for LightBeamPlugin {
         app.register_type::<LightBounceSfx>();
         app.load_resource::<LightBounceSfx>();
         app.init_resource::<LightRenderData>();
-        app.init_resource::<LightSegmentCache>();
         // .register_ldtk_entity::<LightSourceBundle>("LightSource")
         app.add_systems(
-            FixedUpdate,
+            Update,
             (
-                (
-                    simulate_light_sources,
-                    spawn_needed_segments,
-                    visually_sync_segments,
-                )
-                    .chain(),
+                cleanup_light_segments,
+                ApplyDeferred,
                 tick_light_sources,
+                simulate_light_sources,
             )
+                .chain()
                 .in_set(LevelSystems::Simulation),
-        )
-        .add_observer(cleanup_light_sources);
+        );
+        app.add_observer(cleanup_light_sources);
         // .add_systems(
         //     PostUpdate,
         //     spawn_level_light_beams.in_set(LevelSystems::Simulation),

@@ -1,5 +1,5 @@
 use avian2d::prelude::*;
-use bevy::{ecs::entity::EntityHashMap, prelude::*};
+use bevy::prelude::*;
 
 use crate::{
     camera::HIGHRES_LAYER,
@@ -9,6 +9,7 @@ use crate::{
             HitByLight, LightBeamSource, LightColor, LIGHT_SPEED,
         },
         lighting::LineLight2d,
+        particle::spark::SparkExplosionEvent,
         Layers,
     },
     shared::ResetLevels,
@@ -28,13 +29,6 @@ pub struct LightSegmentBundle {
     pub material: MeshMaterial2d<LightMaterial>,
     pub visibility: Visibility,
     pub transform: Transform,
-}
-
-/// [`Resource`] used to store [`Entity`] handles to the light segments so they aren't added and
-/// despawned every frame. See [`simulate_light_sources`] for details.
-#[derive(Resource, Default)]
-pub struct LightSegmentCache {
-    segments: EntityHashMap<(Vec<Entity>, LightColor)>,
 }
 
 #[derive(Resource, Asset, Clone, Reflect)]
@@ -185,9 +179,6 @@ pub fn play_light_beam(
     playback
 }
 
-#[derive(Default, Component)]
-pub struct LightBeamPoints(Vec<Vec2>);
-
 /// [`System`] that runs on [`Update`], calculating the [`Transform`] of light segments from the
 /// corresponding [`LightBeamSource`]. Note that this calculation happens every frame, so instead of
 /// rapidly spawning/despawning the entities, we spawn them and cache them in the
@@ -198,29 +189,39 @@ pub struct LightBeamPoints(Vec<Vec2>);
 #[allow(clippy::too_many_arguments)]
 pub fn simulate_light_sources(
     mut commands: Commands,
-    mut q_light_sources: Query<(Entity, &mut LightBeamSource, &mut PrevLightBeamPlayback)>,
+    mut q_light_sources: Query<(&mut LightBeamSource, &mut PrevLightBeamPlayback)>,
     // q_black_ray: Query<(Entity, &BlackRayComponent)>,
     spatial_query: SpatialQuery,
     // q_mirrors: Query<&Mirror>,
     // used to tell if a collision was against a white beam (a different sound is played)
     q_segments: Query<&LightSegment>,
     light_bounce_sfx: Res<LightBounceSfx>,
-    // mut ev_spark_explosion: EventWriter<SparkExplosionEvent>,
+    mut ev_spark_explosion: MessageWriter<SparkExplosionEvent>,
+    light_render_data: Res<LightRenderData>,
 ) {
-    for (source_entity, mut source, mut prev_playback) in q_light_sources.iter_mut() {
+    for (mut source, mut prev_playback) in q_light_sources.iter_mut() {
         let playback = play_light_beam(&spatial_query, &source);
         let mut pts: Vec<Vec2> = playback.iter_points(&source).collect();
 
-        let intersections = playback.intersections.len();
-        for i in 0..intersections {
+        let mut i = 0;
+        loop {
             let prev_x = prev_playback.intersections.get(i).cloned().flatten();
-            let new_x = playback.intersections[i];
+            let new_x = playback.intersections.get(i).cloned();
 
-            let is_same_intersection = prev_x.is_some_and(|prev_x| prev_x.entity == new_x.entity);
+            let is_same_intersection = match (prev_x, new_x) {
+                (Some(px), Some(nx)) => px.entity == nx.entity,
+                (None, None) => break,
+                _ => false,
+            };
 
             // diff intersection
             if !is_same_intersection {
-                let is_closer = prev_x.is_none_or(|prev_x| prev_x.time > new_x.time);
+                let is_closer = match (prev_x, new_x) {
+                    (None, Some(nx)) => true,
+                    (Some(px), Some(nx)) => px.time > nx.time,
+                    (Some(px), None) => false,
+                    _ => break,
+                };
 
                 // remvoe all points after the current intersection
                 pts.truncate(i + 2);
@@ -254,6 +255,7 @@ pub fn simulate_light_sources(
                 }
 
                 if add_intersection {
+                    let new_x = new_x.unwrap();
                     pts[i + 1] = new_x.point;
                     commands.trigger(HitByLight {
                         entity: new_x.entity,
@@ -270,6 +272,7 @@ pub fn simulate_light_sources(
                 }
 
                 if play_sound {
+                    let new_x = new_x.unwrap();
                     let reflect = match q_segments.get(new_x.entity) {
                         Ok(segment) => segment.color == LightColor::White,
                         _ => false,
@@ -286,10 +289,10 @@ pub fn simulate_light_sources(
                             .unwrap_or(&light_bounce_sfx.bounce[2])
                     }
                     .clone();
-                    // ev_spark_explosion.send(SparkExplosionEvent {
-                    //     pos: new_x.point,
-                    //     color: source.color.light_beam_color(),
-                    // });
+                    ev_spark_explosion.write(SparkExplosionEvent {
+                        pos: new_x.point,
+                        color: source.color.light_beam_color(),
+                    });
                     commands
                         .entity(new_x.entity)
                         .with_child((AudioPlayer::new(audio), PlaybackSettings::DESPAWN));
@@ -300,30 +303,24 @@ pub fn simulate_light_sources(
             } else {
                 // keep on updating the previous intersection buffer because this could be a moving
                 // platform
-                prev_playback.intersections[i] = Some(new_x);
+                prev_playback.intersections[i] = new_x;
             }
-        }
-        commands.entity(source_entity).insert(LightBeamPoints(pts));
-    }
-}
-
-pub fn spawn_needed_segments(
-    mut commands: Commands,
-    q_light_sources: Query<(Entity, &LightBeamSource, &LightBeamPoints)>,
-    mut segment_cache: ResMut<LightSegmentCache>,
-    light_render_data: Res<LightRenderData>,
-) {
-    for (entity, source, pts) in q_light_sources.iter() {
-        let segments = pts.0.len() - 1;
-        // lazily spawn segment entities until there are enough segments to display the light beam
-        // path
-        if !segment_cache.segments.contains_key(&entity) {
-            segment_cache
-                .segments
-                .insert(entity, (vec![], source.color));
+            i += 1;
         }
 
-        while segment_cache.segments[&entity].0.len() < segments.min(LIGHT_MAX_SEGMENTS) {
+        for i in 0..pts.len() - 1 {
+            if pts[i].distance(pts[i + 1]) < 0.1 {
+                continue;
+            }
+            // NOTE: hardcode here should be okay
+            let midpoint = pts[i].midpoint(pts[i + 1]).extend(4.);
+            let scale = Vec3::new(pts[i].distance(pts[i + 1]), 1., 1.);
+            let rotation = (pts[i + 1] - pts[i]).to_angle();
+
+            let transform = Transform::from_translation(midpoint)
+                .with_scale(scale)
+                .with_rotation(Quat::from_rotation_z(rotation));
+
             let id = commands
                 .spawn(LightSegmentBundle {
                     segment: LightSegment {
@@ -331,17 +328,18 @@ pub fn spawn_needed_segments(
                     },
                     mesh: light_render_data.mesh.clone(),
                     material: light_render_data.material_map[source.color].clone(),
-                    visibility: Visibility::Hidden,
-                    transform: Transform::default(),
+                    visibility: Visibility::Visible,
+                    transform,
                 })
                 .insert(HIGHRES_LAYER)
                 .with_child(LineLight2d {
                     color: source.color.lighting_color().extend(1.0),
-                    half_length: 10.0,
+                    half_length: scale.x / 2.0,
                     radius: 20.0,
                     volumetric_intensity: 0.04,
                 })
                 .id();
+
             // White beams need colliders
             if source.color == LightColor::White {
                 commands.entity(id).insert((
@@ -358,105 +356,35 @@ pub fn spawn_needed_segments(
                     ),
                 ));
             }
-            // // Black beams need Black_Ray_Component and colliders
-            // if source.color == LightColor::Black {
-            //     commands.entity(id).insert((
-            //         BlackRayComponent,
-            //         Sensor,
-            //         Collider::cuboid(0.5, 0.5),
-            //         CollisionGroups::new(
-            //             GroupLabel::BLACK_RAY,
-            //             GroupLabel::TERRAIN
-            //                 | GroupLabel::PLATFORM
-            //                 | GroupLabel::LIGHT_SENSOR
-            //                 | GroupLabel::LIGHT_RAY
-            //                 | GroupLabel::BLUE_RAY
-            //                 | GroupLabel::WHITE_RAY,
-            //         ),
-            //     ));
-            // }
-            segment_cache.segments.get_mut(&entity).unwrap().0.push(id);
-            //segment_cache.segments[&source.color].push(id);
         }
     }
 }
 
-pub fn visually_sync_segments(
-    q_light_sources: Query<(Entity, &LightBeamSource, &LightBeamPoints)>,
-    segment_cache: Res<LightSegmentCache>,
-    mut q_segments: Query<(&Children, &mut Transform, &mut Visibility), With<LightSegment>>,
-    mut q_line_lights: Query<&mut LineLight2d>,
-) {
-    for (entity, _source, pts) in q_light_sources.iter() {
-        let pts = &pts.0;
-        // use the light beam path to set the transform of the segments currently in the cache
-
-        for (i, segment) in segment_cache.segments[&entity].0.iter().enumerate() {
-            let Ok((children, mut c_transform, mut c_visibility)) = q_segments.get_mut(*segment)
-            else {
-                panic!("Segment doesn't have transform or visibility!");
-            };
-            let Some(line_light_entity) = children.first() else {
-                panic!("Segment doesn't have line light!");
-            };
-            let Ok(mut line_light) = q_line_lights.get_mut(*line_light_entity) else {
-                panic!("Segment doesn't have line light!");
-            };
-
-            if i + 1 < pts.len() && pts[i].distance(pts[i + 1]) > 0.1 {
-                // NOTE: hardcode here should be okay
-                let midpoint = pts[i].midpoint(pts[i + 1]).extend(4.);
-                let scale = Vec3::new(pts[i].distance(pts[i + 1]), 1., 1.);
-                let rotation = (pts[i + 1] - pts[i]).to_angle();
-
-                let transform = Transform::from_translation(midpoint)
-                    .with_scale(scale)
-                    .with_rotation(Quat::from_rotation_z(rotation));
-
-                line_light.half_length = scale.x / 2.0;
-                *c_transform = transform;
-                *c_visibility = Visibility::Visible;
-            } else {
-                // required for white beam
-                line_light.half_length = 0.0;
-                *c_transform = Transform::default();
-                *c_visibility = Visibility::Hidden;
-            }
-        }
-    }
-}
-
-/// [`System`] that runs on [`FixedUpdate`], advancing the distance the light beam can travel.
-pub fn tick_light_sources(mut q_light_sources: Query<&mut LightBeamSource>) {
+pub fn tick_light_sources(mut q_light_sources: Query<&mut LightBeamSource>, time: Res<Time>) {
     for mut source in q_light_sources.iter_mut() {
-        source.time_traveled += LIGHT_SPEED;
+        source.time_traveled += LIGHT_SPEED * time.delta_secs() * 64.;
     }
 }
 
-/// [`System`] that is responsible for hiding all of the [`LightSegment`](LightSegmentBundle)s
-/// and despawning [`LightBeamSource`]s when the level changes.
 pub fn cleanup_light_sources(
     _: On<ResetLevels>,
     mut commands: Commands,
-    q_light_sources: Query<(Entity, &LightBeamSource)>,
-    segment_cache: Res<LightSegmentCache>,
-    mut q_segments: Query<(&mut Transform, &mut Visibility), With<LightSegment>>,
+    q_light_sources: Query<Entity, With<LightBeamSource>>,
+    q_segments: Query<Entity, With<LightSegment>>,
 ) {
-    for (entity, _) in q_light_sources.iter() {
-        // if light_beam_source.color != LightColor::Black {
-        commands.entity(entity).despawn();
-        // }
+    for e in q_light_sources.iter() {
+        commands.entity(e).despawn();
     }
+    for e in q_segments.iter() {
+        commands.entity(e).despawn();
+    }
+}
 
-    segment_cache.segments.iter().for_each(|(_, items)| {
-        for &entity in items.0.iter() {
-            let (mut transform, mut visibility) = q_segments
-                .get_mut(entity)
-                .expect("Segment should have visibility");
-
-            // required for white beam
-            *transform = Transform::default();
-            *visibility = Visibility::Hidden;
-        }
-    });
+pub fn cleanup_light_segments(
+    mut commands: Commands,
+    q_segments: Query<Entity, With<LightSegment>>,
+) {
+    for e in q_segments.iter() {
+        commands.entity(e).despawn();
+    }
 }

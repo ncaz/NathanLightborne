@@ -113,7 +113,7 @@ pub fn update_particle_emitters(
             continue;
         }
         emitter.timer.tick(time.delta());
-        if !emitter.timer.finished()
+        if !emitter.timer.is_finished()
             && emitter.timer.elapsed() < emitter.get_delay_range(transform.scale()).end
         // make emitter does not wait for more than max delay range to emit next particle.
         // useful for emitters with changing areas, such as segment sparks.
