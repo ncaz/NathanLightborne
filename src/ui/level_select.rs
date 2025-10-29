@@ -4,23 +4,13 @@ use bevy::asset::RenderAssetUsages;
 use bevy::image::{BevyDefault, TextureFormatPixelInfo};
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
-use bevy_ecs_ldtk::ldtk::{FieldValue, Type};
-use bevy_ecs_ldtk::prelude::{LdtkFields, RawLevelAccessor};
-use bevy_ecs_ldtk::{prelude::LdtkProject, LdtkProjectHandle};
+use bevy_ecs_ldtk::ldtk::FieldValue;
+use bevy_ecs_ldtk::prelude::LdtkFields;
 use bevy_ecs_ldtk::{LevelIid, LevelSelection};
 
-use image as img;
-use std::fs;
-use std::path::Path;
-
 use crate::asset::LoadResource;
-// use crate::camera::{camera_position_from_level, CameraControlType, CameraMoveEvent};
 use crate::config::Config;
-use crate::game::setup::LevelAssets;
-use crate::ldtk::{LdtkParam, LevelExt};
-// use crate::level::start_flag::StartFlag;
-// use crate::level::{get_ldtk_level_data, level_box_from_level, CurrentLevel};
-// use crate::player::PlayerMarker;
+use crate::ldtk::LdtkParam;
 use crate::shared::{GameState, UiState};
 use crate::sound::{BgmTrack, ChangeBgmEvent};
 use crate::ui::{UiButton, UiClick, UiFont, UiFontSize};
@@ -46,7 +36,6 @@ impl Plugin for LevelSelectPlugin {
     }
 }
 
-const START_FLAG_IDENT: &str = "Start";
 const TERRAIN_LAYER_IDENT: &str = "Terrain";
 const ENTITY_LAYER_IDENT: &str = "Entities";
 const SENSOR_ENTITY_IDENT: &str = "Sensor";

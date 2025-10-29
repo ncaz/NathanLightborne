@@ -18,7 +18,7 @@ pub struct Tooltip;
 #[derive(Component)]
 pub enum TooltipDespawnSetting {
     LevelSwitch,
-    None,
+    // None,
 }
 
 pub fn handle_tooltip_despawns(
@@ -31,8 +31,7 @@ pub fn handle_tooltip_despawns(
         match tooltip_despawn {
             TooltipDespawnSetting::LevelSwitch => {
                 commands.entity(tooltip).despawn();
-            }
-            TooltipDespawnSetting::None => (),
+            } // TooltipDespawnSetting::None => (),
         }
     }
 }

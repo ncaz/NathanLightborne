@@ -217,9 +217,9 @@ pub fn simulate_light_sources(
             // diff intersection
             if !is_same_intersection {
                 let is_closer = match (prev_x, new_x) {
-                    (None, Some(nx)) => true,
+                    (None, Some(_)) => true,
                     (Some(px), Some(nx)) => px.time > nx.time,
-                    (Some(px), None) => false,
+                    (Some(_), None) => false,
                     _ => break,
                 };
 
