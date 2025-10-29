@@ -4,6 +4,7 @@ use crate::{
     config::Config,
     shared::GameState,
 };
+use avian2d::prelude::RigidBody;
 use bevy::prelude::*;
 use bevy_ecs_ldtk::prelude::*;
 
@@ -65,6 +66,8 @@ pub fn spawn_level(mut commands: Commands, level_assets: Res<LevelAssets>) {
             ldtk_handle: level_assets.ldtk_file.clone().into(),
             ..Default::default()
         })
+        // NOTE: RigidBody must be on the parent entity for god knows what reason
+        .insert(RigidBody::Static)
         .insert(LevelMarker);
 }
 

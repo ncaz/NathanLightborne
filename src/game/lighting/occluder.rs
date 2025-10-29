@@ -1,5 +1,9 @@
 use bevy::{
-    core_pipeline::fullscreen_vertex_shader::fullscreen_shader_vertex_state,
+    camera::{
+        primitives::Aabb,
+        visibility::{add_visibility_class, VisibilityClass, VisibilitySystems},
+    },
+    core_pipeline::FullscreenShader,
     ecs::{
         query::{QueryItem, ROQueryItem},
         system::{
@@ -8,6 +12,8 @@ use bevy::{
         },
     },
     math::{vec3, Affine3, Affine3A},
+    mesh::VertexBufferLayout,
+    platform::collections::HashMap,
     prelude::*,
     render::{
         camera::ExtractedCamera,
@@ -15,22 +21,25 @@ use bevy::{
             ComponentUniforms, DynamicUniformIndex, ExtractComponent, ExtractComponentPlugin,
             UniformComponentPlugin,
         },
-        primitives::Aabb,
-        render_phase::{PhaseItem, RenderCommand, RenderCommandResult, TrackedRenderPass},
+        render_phase::{
+            PhaseItem, RenderCommand, RenderCommandResult, TrackedRenderPass,
+            ViewSortedRenderPhases,
+        },
         render_resource::{binding_types::uniform_buffer, *},
         renderer::{RenderDevice, RenderQueue},
         texture::TextureCache,
-        view::{check_visibility, ViewDepthTexture, ViewTarget, VisibilitySystems},
-        Render, RenderApp, RenderSet,
+        view::{ExtractedView, ViewDepthTexture, ViewTarget},
+        Render, RenderApp, RenderStartup, RenderSystems,
     },
-    sprite::Mesh2dPipeline,
-    utils::HashMap,
+    shader::ShaderDefVal,
+    sprite_render::{init_mesh_2d_pipeline, Mesh2dPipeline},
 };
 use bytemuck::{Pod, Zeroable};
 
+use crate::game::lighting::render::{post_process_layout, DeferredLighting2d};
+
 use super::{
     line_light::{line_light_bind_group_layout, LineLight2dBounds},
-    render::PostProcessRes,
     AmbientLight2d,
 };
 
@@ -43,34 +52,41 @@ impl Plugin for Occluder2dPipelinePlugin {
             .add_plugins(ExtractComponentPlugin::<Occluder2dGroups>::default())
             .add_systems(
                 PostUpdate,
-                (
-                    calculate_occluder_2d_bounds.in_set(VisibilitySystems::CalculateBounds),
-                    check_visibility::<With<Occluder2d>>.in_set(VisibilitySystems::CheckVisibility),
-                ),
+                (calculate_occluder_2d_bounds.in_set(VisibilitySystems::CalculateBounds),),
             );
+
+        let shader: Handle<Shader> = app.world().load_asset("shaders/lighting/occluder.wgsl");
+        let reset_shader: Handle<Shader> = app
+            .world()
+            .load_asset("shaders/lighting/occluder_reset.wgsl");
 
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
         };
 
-        render_app
-            .add_systems(
-                Render,
-                prepare_occluder_count_textures.in_set(RenderSet::PrepareResources),
-            )
-            .add_systems(
-                Render,
-                prepare_occluder_2d_bind_group.in_set(RenderSet::PrepareBindGroups),
-            );
+        render_app.add_systems(
+            Render,
+            prepare_occluder_count_textures.in_set(RenderSystems::PrepareResources),
+        );
+        render_app.add_systems(
+            Render,
+            prepare_occluder_2d_bind_group.in_set(RenderSystems::PrepareBindGroups),
+        );
+        render_app.insert_resource(Occluder2dAssets {
+            shader,
+            reset_shader,
+        });
+        render_app.add_systems(
+            RenderStartup,
+            init_occluder_2d_pipeline.after(init_mesh_2d_pipeline),
+        );
     }
 
     fn finish(&self, app: &mut App) {
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
         };
-        render_app
-            .init_resource::<Occluder2dPipeline>()
-            .init_resource::<Occluder2dBuffers>();
+        render_app.init_resource::<Occluder2dBuffers>();
     }
 }
 
@@ -104,7 +120,8 @@ impl Default for Occluder2dGroups {
 }
 
 #[derive(Component)]
-#[require(Transform, Visibility, Occluder2dGroups)]
+#[require(Transform, Visibility, Occluder2dGroups, VisibilityClass)]
+#[component(on_add = add_visibility_class::<Occluder2d>)]
 pub struct Occluder2d {
     pub half_size: Vec2,
 }
@@ -132,12 +149,19 @@ pub fn calculate_occluder_2d_bounds(
 
 impl ExtractComponent for Occluder2d {
     type Out = (ExtractOccluder2d, Occluder2dBounds);
-    type QueryData = (&'static GlobalTransform, &'static Occluder2d);
+    type QueryData = (
+        &'static GlobalTransform,
+        &'static Occluder2d,
+        Has<Occluder2dDisabled>,
+    );
     type QueryFilter = ();
 
     fn extract_component(
-        (transform, occluder): QueryItem<'_, Self::QueryData>,
+        (transform, occluder, disabled): QueryItem<'_, '_, Self::QueryData>,
     ) -> Option<Self::Out> {
+        if disabled {
+            return None;
+        }
         // FIXME: should not do calculations in extract
         let (scale, rotation, translation) = transform.to_scale_rotation_translation();
         let transform_no_scale =
@@ -174,6 +198,9 @@ pub struct Occluder2dBounds {
     pub transform: Transform,
     pub half_size: Vec2,
 }
+
+#[derive(Component)]
+pub struct Occluder2dDisabled;
 
 impl Occluder2dBounds {
     pub fn visible_from_line_light(&self, light: &LineLight2dBounds) -> bool {
@@ -257,10 +284,17 @@ pub fn prepare_occluder_count_textures(
     mut commands: Commands,
     mut texture_cache: ResMut<TextureCache>,
     render_device: Res<RenderDevice>,
-    views: Query<(Entity, &ExtractedCamera), (With<Camera2d>, With<AmbientLight2d>)>,
+    deferred_lighting_phases: Res<ViewSortedRenderPhases<DeferredLighting2d>>,
+    views: Query<
+        (Entity, &ExtractedCamera, &ExtractedView),
+        (With<Camera2d>, With<AmbientLight2d>),
+    >,
 ) {
-    let mut textures = HashMap::default();
-    for (view, camera) in &views {
+    let mut textures = <HashMap<_, _>>::default();
+    for (view, camera, extract_view) in &views {
+        if !deferred_lighting_phases.contains_key(&extract_view.retained_view_entity) {
+            continue;
+        }
         let Some(physical_target_size) = camera.physical_target_size else {
             continue;
         };
@@ -329,8 +363,8 @@ impl<P: PhaseItem, const I: usize> RenderCommand<P> for SetOccluder2dBindGroup<I
 
     fn render<'w>(
         _item: &P,
-        _view: ROQueryItem<'w, Self::ViewQuery>,
-        entity: Option<ROQueryItem<'w, Self::ItemQuery>>,
+        _view: ROQueryItem<'w, '_, Self::ViewQuery>,
+        entity: Option<ROQueryItem<'w, '_, Self::ItemQuery>>,
         param: SystemParamItem<'w, '_, Self::Param>,
         pass: &mut TrackedRenderPass<'w>,
     ) -> RenderCommandResult {
@@ -350,8 +384,8 @@ impl<P: PhaseItem> RenderCommand<P> for DrawOccluder2d {
 
     fn render<'w>(
         _item: &P,
-        _view: ROQueryItem<'w, Self::ViewQuery>,
-        _entity: Option<ROQueryItem<'w, Self::ItemQuery>>,
+        _view: ROQueryItem<'w, '_, Self::ViewQuery>,
+        _entity: Option<ROQueryItem<'w, '_, Self::ItemQuery>>,
         param: SystemParamItem<'w, '_, Self::Param>,
         pass: &mut TrackedRenderPass<'w>,
     ) -> RenderCommandResult {
@@ -370,6 +404,12 @@ impl<P: PhaseItem> RenderCommand<P> for DrawOccluder2d {
 }
 
 #[derive(Resource)]
+pub struct Occluder2dAssets {
+    shader: Handle<Shader>,
+    reset_shader: Handle<Shader>,
+}
+
+#[derive(Resource)]
 pub struct Occluder2dPipeline {
     pub layout: BindGroupLayout,
     pub shadow_pipeline_id: CachedRenderPipelineId,
@@ -378,19 +418,15 @@ pub struct Occluder2dPipeline {
 }
 
 pub fn build_occluder_2d_pipeline_descriptor(
-    world: &mut World,
+    render_device: &Res<RenderDevice>,
+    occluder_2d_assets: &Res<Occluder2dAssets>,
+    mesh2d_pipeline: &Res<Mesh2dPipeline>,
     cutout: bool,
     occluder_layout: BindGroupLayout,
 ) -> RenderPipelineDescriptor {
-    let render_device = world.resource::<RenderDevice>();
-    let post_process_res = world.resource::<PostProcessRes>();
-    let post_process_layout = post_process_res.layout.clone();
-
+    let post_process_layout = post_process_layout(render_device);
     let line_light_layout = line_light_bind_group_layout(render_device);
-
-    let shader = world.load_asset("shaders/lighting/occluder.wgsl");
-
-    let mesh2d_pipeline = Mesh2dPipeline::from_world(world);
+    let shader = occluder_2d_assets.shader.clone();
 
     let pos_buffer_layout = VertexBufferLayout {
         array_stride: std::mem::size_of::<Occluder2dVertex>() as u64,
@@ -426,20 +462,20 @@ pub fn build_occluder_2d_pipeline_descriptor(
         label,
         layout: vec![
             post_process_layout,
-            mesh2d_pipeline.view_layout,
+            mesh2d_pipeline.view_layout.clone(),
             line_light_layout,
             occluder_layout,
         ],
         vertex: VertexState {
             shader: shader.clone(),
             shader_defs: shader_defs.clone(),
-            entry_point: "vertex".into(),
+            entry_point: Some("vertex".into()),
             buffers: vec![pos_buffer_layout],
         },
         fragment: Some(FragmentState {
             shader,
             shader_defs,
-            entry_point: "fragment".into(),
+            entry_point: Some("fragment".into()),
             targets: vec![Some(ColorTargetState {
                 format: ViewTarget::TEXTURE_FORMAT_HDR,
                 blend: Some(BlendState {
@@ -485,84 +521,98 @@ pub fn build_occluder_2d_pipeline_descriptor(
     }
 }
 
-impl FromWorld for Occluder2dPipeline {
-    fn from_world(world: &mut World) -> Self {
-        let render_device = world.resource::<RenderDevice>();
+pub fn init_occluder_2d_pipeline(
+    mut commands: Commands,
+    render_device: Res<RenderDevice>,
+    occluder_2d_assets: Res<Occluder2dAssets>,
+    mesh2d_pipeline: Res<Mesh2dPipeline>,
+    fullscreen_shader: Res<FullscreenShader>,
+    pipeline_cache: ResMut<PipelineCache>,
+) {
+    let layout = render_device.create_bind_group_layout(
+        "occluder_bind_group_layout",
+        &BindGroupLayoutEntries::single(
+            ShaderStages::VERTEX_FRAGMENT,
+            uniform_buffer::<ExtractOccluder2d>(true),
+        ),
+    );
 
-        let layout = render_device.create_bind_group_layout(
-            "occluder_bind_group_layout",
-            &BindGroupLayoutEntries::single(
-                ShaderStages::VERTEX_FRAGMENT,
-                uniform_buffer::<ExtractOccluder2d>(true),
-            ),
-        );
+    let reset_shader = occluder_2d_assets.reset_shader.clone();
 
-        let reset_shader = world.load_asset("shaders/lighting/occluder_reset.wgsl");
+    let shadow_pipeline_descriptor = build_occluder_2d_pipeline_descriptor(
+        &render_device,
+        &occluder_2d_assets,
+        &mesh2d_pipeline,
+        false,
+        layout.clone(),
+    );
+    let cutout_pipeline_descriptor = build_occluder_2d_pipeline_descriptor(
+        &render_device,
+        &occluder_2d_assets,
+        &mesh2d_pipeline,
+        true,
+        layout.clone(),
+    );
 
-        let shadow_pipeline_descriptor =
-            build_occluder_2d_pipeline_descriptor(world, false, layout.clone());
-        let cutout_pipeline_descriptor =
-            build_occluder_2d_pipeline_descriptor(world, true, layout.clone());
+    let vertex_state = fullscreen_shader.to_vertex_state();
 
-        let pipeline_cache = world.resource_mut::<PipelineCache>();
-        let shadow_pipeline_id = pipeline_cache.queue_render_pipeline(shadow_pipeline_descriptor);
-        let cutout_pipeline_id = pipeline_cache.queue_render_pipeline(cutout_pipeline_descriptor);
+    let shadow_pipeline_id = pipeline_cache.queue_render_pipeline(shadow_pipeline_descriptor);
+    let cutout_pipeline_id = pipeline_cache.queue_render_pipeline(cutout_pipeline_descriptor);
 
-        let reset_pipeline_id = pipeline_cache.queue_render_pipeline(RenderPipelineDescriptor {
-            label: Some("occluder_reset_pipeline".into()),
-            layout: vec![],
-            vertex: fullscreen_shader_vertex_state(),
-            fragment: Some(FragmentState {
-                shader: reset_shader,
-                shader_defs: vec![],
-                entry_point: "fragment".into(),
-                targets: vec![Some(ColorTargetState {
-                    format: ViewTarget::TEXTURE_FORMAT_HDR,
-                    blend: Some(BlendState {
-                        color: BlendComponent {
-                            src_factor: BlendFactor::Zero,
-                            dst_factor: BlendFactor::One,
-                            operation: BlendOperation::Add,
-                        },
-                        alpha: BlendComponent {
-                            src_factor: BlendFactor::Zero,
-                            dst_factor: BlendFactor::One,
-                            operation: BlendOperation::Add,
-                        },
-                    }),
-                    write_mask: ColorWrites::ALL,
-                })],
-            }),
-            primitive: PrimitiveState::default(),
-            depth_stencil: Some(DepthStencilState {
-                format: TextureFormat::Stencil8,
-                depth_write_enabled: false,
-                depth_compare: CompareFunction::Always,
-                stencil: StencilState {
-                    front: StencilFaceState {
-                        compare: CompareFunction::Always,
-                        fail_op: StencilOperation::Zero,
-                        depth_fail_op: StencilOperation::Zero,
-                        pass_op: StencilOperation::Zero,
+    let reset_pipeline_id = pipeline_cache.queue_render_pipeline(RenderPipelineDescriptor {
+        label: Some("occluder_reset_pipeline".into()),
+        layout: vec![],
+        vertex: vertex_state,
+        fragment: Some(FragmentState {
+            shader: reset_shader,
+            shader_defs: vec![],
+            entry_point: Some("fragment".into()),
+            targets: vec![Some(ColorTargetState {
+                format: ViewTarget::TEXTURE_FORMAT_HDR,
+                blend: Some(BlendState {
+                    color: BlendComponent {
+                        src_factor: BlendFactor::Zero,
+                        dst_factor: BlendFactor::One,
+                        operation: BlendOperation::Add,
                     },
-                    back: StencilFaceState::default(),
-                    read_mask: 0xFF,
-                    write_mask: 0xFF,
+                    alpha: BlendComponent {
+                        src_factor: BlendFactor::Zero,
+                        dst_factor: BlendFactor::One,
+                        operation: BlendOperation::Add,
+                    },
+                }),
+                write_mask: ColorWrites::ALL,
+            })],
+        }),
+        primitive: PrimitiveState::default(),
+        depth_stencil: Some(DepthStencilState {
+            format: TextureFormat::Stencil8,
+            depth_write_enabled: false,
+            depth_compare: CompareFunction::Always,
+            stencil: StencilState {
+                front: StencilFaceState {
+                    compare: CompareFunction::Always,
+                    fail_op: StencilOperation::Zero,
+                    depth_fail_op: StencilOperation::Zero,
+                    pass_op: StencilOperation::Zero,
                 },
-                bias: DepthBiasState::default(),
-            }),
-            multisample: MultisampleState::default(),
-            push_constant_ranges: vec![],
-            zero_initialize_workgroup_memory: false,
-        });
+                back: StencilFaceState::default(),
+                read_mask: 0xFF,
+                write_mask: 0xFF,
+            },
+            bias: DepthBiasState::default(),
+        }),
+        multisample: MultisampleState::default(),
+        push_constant_ranges: vec![],
+        zero_initialize_workgroup_memory: false,
+    });
 
-        Occluder2dPipeline {
-            layout,
-            shadow_pipeline_id,
-            cutout_pipeline_id,
-            reset_pipeline_id,
-        }
-    }
+    commands.insert_resource(Occluder2dPipeline {
+        layout,
+        shadow_pipeline_id,
+        cutout_pipeline_id,
+        reset_pipeline_id,
+    });
 }
 
 // WebGL2 requires thes structs be 16-byte aligned

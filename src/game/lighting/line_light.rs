@@ -1,4 +1,8 @@
 use bevy::{
+    camera::{
+        primitives::Aabb,
+        visibility::{add_visibility_class, VisibilityClass, VisibilitySystems},
+    },
     ecs::{
         query::{QueryItem, ROQueryItem},
         system::{
@@ -7,61 +11,62 @@ use bevy::{
         },
     },
     math::{vec2, vec3, Affine3, Affine3A},
+    mesh::VertexBufferLayout,
     prelude::*,
     render::{
         extract_component::{
             ComponentUniforms, DynamicUniformIndex, ExtractComponent, ExtractComponentPlugin,
             UniformComponentPlugin,
         },
-        mesh::VertexBufferLayout,
-        primitives::Aabb,
         render_phase::{PhaseItem, RenderCommand, RenderCommandResult, TrackedRenderPass},
         render_resource::{binding_types::uniform_buffer, *},
         renderer::{RenderDevice, RenderQueue},
-        view::{check_visibility, ViewTarget, VisibilitySystems},
-        Render, RenderApp, RenderSet,
+        view::ViewTarget,
+        Render, RenderApp, RenderStartup, RenderSystems,
     },
-    sprite::Mesh2dPipeline,
+    sprite_render::{init_mesh_2d_pipeline, Mesh2dPipeline},
 };
 use bytemuck::{Pod, Zeroable};
 
-use super::render::PostProcessRes;
+use crate::game::lighting::render::post_process_layout;
 
 pub struct LineLight2dPlugin;
 
 impl Plugin for LineLight2dPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(ExtractComponentPlugin::<LineLight2d>::default())
-            .add_plugins(UniformComponentPlugin::<ExtractLineLight2d>::default())
-            .add_systems(
-                PostUpdate,
-                (
-                    calculate_line_light_2d_bounds.in_set(VisibilitySystems::CalculateBounds),
-                    check_visibility::<With<LineLight2d>>
-                        .in_set(VisibilitySystems::CheckVisibility),
-                ),
-            );
+        app.add_plugins(ExtractComponentPlugin::<LineLight2d>::default());
+        app.add_plugins(UniformComponentPlugin::<ExtractLineLight2d>::default());
+        app.add_systems(
+            PostUpdate,
+            calculate_line_light_2d_bounds.in_set(VisibilitySystems::CalculateBounds),
+        );
+
+        let shader: Handle<Shader> = app.world().load_asset("shaders/lighting/line_light.wgsl");
 
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
         };
         render_app.add_systems(
             Render,
-            prepare_line_light_2d_bind_group.in_set(RenderSet::PrepareBindGroups),
+            prepare_line_light_2d_bind_group.in_set(RenderSystems::PrepareBindGroups),
+        );
+        render_app.insert_resource(LineLight2dAssets { shader });
+        render_app.add_systems(
+            RenderStartup,
+            init_line_light_2d_pipeline.after(init_mesh_2d_pipeline),
         );
     }
     fn finish(&self, app: &mut App) {
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
         };
-        render_app
-            .init_resource::<LineLight2dPipeline>()
-            .init_resource::<LineLight2dBuffers>();
+        render_app.init_resource::<LineLight2dBuffers>();
     }
 }
 
 #[derive(Component, Default, Clone, Debug)]
-#[require(Transform, Visibility)]
+#[require(Transform, Visibility, VisibilityClass)]
+#[component(on_add = add_visibility_class::<LineLight2d>)]
 pub struct LineLight2d {
     pub color: Vec4,
     pub half_length: f32,
@@ -101,7 +106,7 @@ impl ExtractComponent for LineLight2d {
     type QueryFilter = ();
 
     fn extract_component(
-        (transform, line_light): QueryItem<'_, Self::QueryData>,
+        (transform, line_light): QueryItem<'_, '_, Self::QueryData>,
     ) -> Option<Self::Out> {
         // FIXME: don't do computations in extract
         let (scale, rotation, translation) = transform.to_scale_rotation_translation();
@@ -260,8 +265,8 @@ impl<P: PhaseItem, const I: usize> RenderCommand<P> for SetLineLight2dBindGroup<
 
     fn render<'w>(
         _item: &P,
-        _view: ROQueryItem<'w, Self::ViewQuery>,
-        entity: Option<ROQueryItem<'w, Self::ItemQuery>>,
+        _view: ROQueryItem<'w, '_, Self::ViewQuery>,
+        entity: Option<ROQueryItem<'w, '_, Self::ItemQuery>>,
         param: SystemParamItem<'w, '_, Self::Param>,
         pass: &mut TrackedRenderPass<'w>,
     ) -> RenderCommandResult {
@@ -281,8 +286,8 @@ impl<P: PhaseItem> RenderCommand<P> for DrawLineLight2d {
 
     fn render<'w>(
         _item: &P,
-        _view: ROQueryItem<'w, Self::ViewQuery>,
-        _entity: Option<ROQueryItem<'w, Self::ItemQuery>>,
+        _view: ROQueryItem<'w, '_, Self::ViewQuery>,
+        _entity: Option<ROQueryItem<'w, '_, Self::ItemQuery>>,
         param: SystemParamItem<'w, '_, Self::Param>,
         pass: &mut TrackedRenderPass<'w>,
     ) -> RenderCommandResult {
@@ -303,114 +308,114 @@ impl<P: PhaseItem> RenderCommand<P> for DrawLineLight2d {
 }
 
 #[derive(Resource)]
+pub struct LineLight2dAssets {
+    pub shader: Handle<Shader>,
+}
+
+#[derive(Resource)]
 pub struct LineLight2dPipeline {
     pub layout: BindGroupLayout,
     pub pipeline_id: CachedRenderPipelineId,
 }
 
-impl FromWorld for LineLight2dPipeline {
-    fn from_world(world: &mut World) -> Self {
-        let render_device = world.resource::<RenderDevice>();
-        let post_process_res = world.resource::<PostProcessRes>();
-        let post_process_layout = post_process_res.layout.clone();
+pub fn init_line_light_2d_pipeline(
+    mut commands: Commands,
+    render_device: Res<RenderDevice>,
+    line_light_2d_assets: Res<LineLight2dAssets>,
+    mesh2d_pipeline: Res<Mesh2dPipeline>,
+    pipeline_cache: ResMut<PipelineCache>,
+) {
+    let post_process_layout = post_process_layout(&render_device);
+    let layout = line_light_bind_group_layout(&render_device);
+    let shader = line_light_2d_assets.shader.clone();
 
-        let layout = line_light_bind_group_layout(render_device);
+    let pos_buffer_layout = VertexBufferLayout {
+        array_stride: std::mem::size_of::<LineLight2dVertex>() as u64,
+        step_mode: VertexStepMode::Vertex,
+        attributes: vec![
+            // Position
+            VertexAttribute {
+                format: VertexFormat::Float32x3,
+                offset: std::mem::offset_of!(LineLight2dVertex, position) as u64,
+                shader_location: 0,
+            },
+            // UV
+            VertexAttribute {
+                format: VertexFormat::Float32x2,
+                offset: std::mem::offset_of!(LineLight2dVertex, uv) as u64,
+                shader_location: 1,
+            },
+            // Variant (Inner vs Outer vertex)
+            VertexAttribute {
+                format: VertexFormat::Uint32,
+                offset: std::mem::offset_of!(LineLight2dVertex, variant) as u64,
+                shader_location: 2,
+            },
+        ],
+    };
 
-        let shader = world.load_asset("shaders/lighting/line_light.wgsl");
-
-        let pos_buffer_layout = VertexBufferLayout {
-            array_stride: std::mem::size_of::<LineLight2dVertex>() as u64,
-            step_mode: VertexStepMode::Vertex,
-            attributes: vec![
-                // Position
-                VertexAttribute {
-                    format: VertexFormat::Float32x3,
-                    offset: std::mem::offset_of!(LineLight2dVertex, position) as u64,
-                    shader_location: 0,
-                },
-                // UV
-                VertexAttribute {
-                    format: VertexFormat::Float32x2,
-                    offset: std::mem::offset_of!(LineLight2dVertex, uv) as u64,
-                    shader_location: 1,
-                },
-                // Variant (Inner vs Outer vertex)
-                VertexAttribute {
-                    format: VertexFormat::Uint32,
-                    offset: std::mem::offset_of!(LineLight2dVertex, variant) as u64,
-                    shader_location: 2,
-                },
-            ],
-        };
-
-        let mesh2d_pipeline = Mesh2dPipeline::from_world(world);
-
-        let pipeline_id =
-            world
-                .resource_mut::<PipelineCache>()
-                .queue_render_pipeline(RenderPipelineDescriptor {
-                    label: Some("line_light_pipeline".into()),
-                    layout: vec![
-                        post_process_layout,
-                        mesh2d_pipeline.view_layout,
-                        layout.clone(),
-                    ],
-                    vertex: VertexState {
-                        shader: shader.clone(),
-                        shader_defs: vec![],
-                        entry_point: "vertex".into(),
-                        buffers: vec![pos_buffer_layout],
+    let pipeline_id = pipeline_cache.queue_render_pipeline(RenderPipelineDescriptor {
+        label: Some("line_light_pipeline".into()),
+        layout: vec![
+            post_process_layout,
+            mesh2d_pipeline.view_layout.clone(),
+            layout.clone(),
+        ],
+        vertex: VertexState {
+            shader: shader.clone(),
+            shader_defs: vec![],
+            entry_point: Some("vertex".into()),
+            buffers: vec![pos_buffer_layout],
+        },
+        fragment: Some(FragmentState {
+            shader,
+            shader_defs: vec![],
+            entry_point: Some("fragment".into()),
+            targets: vec![Some(ColorTargetState {
+                format: ViewTarget::TEXTURE_FORMAT_HDR,
+                blend: Some(BlendState {
+                    color: BlendComponent {
+                        src_factor: BlendFactor::One,
+                        dst_factor: BlendFactor::One,
+                        operation: BlendOperation::Add,
                     },
-                    fragment: Some(FragmentState {
-                        shader,
-                        shader_defs: vec![],
-                        entry_point: "fragment".into(),
-                        targets: vec![Some(ColorTargetState {
-                            format: ViewTarget::TEXTURE_FORMAT_HDR,
-                            blend: Some(BlendState {
-                                color: BlendComponent {
-                                    src_factor: BlendFactor::One,
-                                    dst_factor: BlendFactor::One,
-                                    operation: BlendOperation::Add,
-                                },
-                                alpha: BlendComponent {
-                                    src_factor: BlendFactor::One,
-                                    dst_factor: BlendFactor::One,
-                                    operation: BlendOperation::Max,
-                                },
-                            }),
-                            write_mask: ColorWrites::ALL,
-                        })],
-                    }),
-                    // below needs changing?
-                    primitive: PrimitiveState::default(),
-                    depth_stencil: Some(DepthStencilState {
-                        format: TextureFormat::Stencil8,
-                        depth_write_enabled: false,
-                        depth_compare: CompareFunction::Always,
-                        stencil: StencilState {
-                            front: StencilFaceState {
-                                compare: CompareFunction::Equal,
-                                fail_op: StencilOperation::Keep,
-                                depth_fail_op: StencilOperation::Keep,
-                                pass_op: StencilOperation::Keep,
-                            },
-                            back: StencilFaceState::default(),
-                            read_mask: 0xFF,
-                            write_mask: 0xFF,
-                        },
-                        bias: DepthBiasState::default(),
-                    }),
-                    multisample: MultisampleState::default(),
-                    push_constant_ranges: vec![],
-                    zero_initialize_workgroup_memory: false,
-                });
+                    alpha: BlendComponent {
+                        src_factor: BlendFactor::One,
+                        dst_factor: BlendFactor::One,
+                        operation: BlendOperation::Max,
+                    },
+                }),
+                write_mask: ColorWrites::ALL,
+            })],
+        }),
+        // below needs changing?
+        primitive: PrimitiveState::default(),
+        depth_stencil: Some(DepthStencilState {
+            format: TextureFormat::Stencil8,
+            depth_write_enabled: false,
+            depth_compare: CompareFunction::Always,
+            stencil: StencilState {
+                front: StencilFaceState {
+                    compare: CompareFunction::Equal,
+                    fail_op: StencilOperation::Keep,
+                    depth_fail_op: StencilOperation::Keep,
+                    pass_op: StencilOperation::Keep,
+                },
+                back: StencilFaceState::default(),
+                read_mask: 0xFF,
+                write_mask: 0xFF,
+            },
+            bias: DepthBiasState::default(),
+        }),
+        multisample: MultisampleState::default(),
+        push_constant_ranges: vec![],
+        zero_initialize_workgroup_memory: false,
+    });
 
-        LineLight2dPipeline {
-            layout,
-            pipeline_id,
-        }
-    }
+    commands.insert_resource(LineLight2dPipeline {
+        layout,
+        pipeline_id,
+    });
 }
 
 // WebGL2 requires thes structs be 16-byte aligned

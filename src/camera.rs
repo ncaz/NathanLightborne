@@ -4,12 +4,15 @@ use bevy::{
     camera::{visibility::RenderLayers, RenderTarget},
     core_pipeline::tonemapping::Tonemapping,
     prelude::*,
-    render::render_resource::{
-        Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
+    render::{
+        render_resource::{
+            Extent3d, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
+        },
+        view::Hdr,
     },
 };
 
-use crate::callback::Callback;
+use crate::{callback::Callback, game::lighting::AmbientLight2d};
 
 pub const CAMERA_WIDTH: u32 = 320;
 pub const CAMERA_HEIGHT: u32 = 180;
@@ -173,6 +176,7 @@ pub fn setup_camera(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
             clear_color: ClearColorConfig::Custom(Color::NONE),
             ..default()
         })
+        .insert(Hdr)
         .insert(Tonemapping::TonyMcMapface)
         .insert(projection)
         .insert(Transform::default())
@@ -193,6 +197,10 @@ pub fn setup_camera(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
             target: RenderTarget::Image(terrain_handle.clone().into()),
             clear_color: ClearColorConfig::Custom(Color::NONE),
             ..default()
+        })
+        .insert(Hdr)
+        .insert(AmbientLight2d {
+            color: Vec4::new(1.0, 1.0, 1.0, 0.4),
         })
         .insert(Tonemapping::TonyMcMapface)
         .insert(PixelPerfectCamera {

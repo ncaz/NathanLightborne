@@ -2,17 +2,18 @@ use bevy::{
     core_pipeline::core_2d::graph::{Core2d, Node2d},
     prelude::*,
     render::{
-        render_graph::{RenderGraphApp, ViewNodeRunner},
+        render_graph::{RenderGraphExt, ViewNodeRunner},
         render_phase::{
             sort_phase_system, AddRenderCommand, DrawFunctions, ViewSortedRenderPhases,
         },
-        Render, RenderApp, RenderSet,
+        render_resource::{CachedPipelineState, PipelineCache},
+        Render, RenderApp, RenderSystems,
     },
 };
 
 pub use ambient_light::AmbientLight2d;
 pub use line_light::LineLight2d;
-pub use occluder::{Occluder2d, Occluder2dGroups};
+pub use occluder::{Occluder2d, Occluder2dDisabled};
 
 use ambient_light::AmbientLight2dPlugin;
 use line_light::LineLight2dPlugin;
@@ -24,6 +25,8 @@ use render::{
     ResetOccluderStencil,
 };
 
+use crate::game::lighting::line_light::LineLight2dPipeline;
+
 mod ambient_light;
 mod line_light;
 mod occluder;
@@ -33,9 +36,9 @@ pub struct DeferredLightingPlugin;
 
 impl Plugin for DeferredLightingPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(Occluder2dPipelinePlugin)
-            .add_plugins(AmbientLight2dPlugin)
-            .add_plugins(LineLight2dPlugin);
+        app.add_plugins(Occluder2dPipelinePlugin);
+        app.add_plugins(AmbientLight2dPlugin);
+        app.add_plugins(LineLight2dPlugin);
 
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
@@ -66,8 +69,8 @@ impl Plugin for DeferredLightingPlugin {
             .add_systems(
                 Render,
                 (
-                    sort_phase_system::<DeferredLighting2d>.in_set(RenderSet::PhaseSort),
-                    queue_deferred_lighting.in_set(RenderSet::QueueMeshes),
+                    sort_phase_system::<DeferredLighting2d>.in_set(RenderSystems::PhaseSort),
+                    queue_deferred_lighting.in_set(RenderSystems::QueueMeshes),
                 ),
             );
     }

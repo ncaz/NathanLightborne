@@ -2,24 +2,26 @@ use bevy::{ecs::system::SystemParam, prelude::*};
 use bevy_ecs_ldtk::{
     assets::{LdtkProject, LevelIndices},
     ldtk::{loaded_level::LoadedLevel, Level, Type},
+    prelude::LdtkFields,
     LevelIid, LevelSelection,
 };
+use enum_map::{enum_map, EnumMap};
 
-use crate::game::setup::LevelAssets;
+use crate::game::{light::LightColor, setup::LevelAssets};
 
 pub trait LevelExt {
     const START_FLAG_IDENT: &'static str;
     fn start_flag_pos(&self) -> Option<Vec2>;
     fn level_box(&self) -> Rect;
+    fn allowed_colors(&self) -> EnumMap<LightColor, bool>;
 }
 
 impl LevelExt for Level {
     const START_FLAG_IDENT: &'static str = "Start";
 
     fn start_flag_pos(&self) -> Option<Vec2> {
-        let Some(layers) = self.layer_instances.as_ref() else {
-            panic!("Layers not found! (This is probably because you are using the \"Separate level files\" option.)")
-        };
+        let layers = self.layer_instances.as_ref().expect("Layers not found! (This is probably because you are using the \"Separate level files\" option.)");
+
         for layer in layers {
             if layer.layer_instance_type == Type::Entities {
                 for entity in &layer.entity_instances {
@@ -34,6 +36,18 @@ impl LevelExt for Level {
             }
         }
         None
+    }
+
+    fn allowed_colors(&self) -> EnumMap<LightColor, bool> {
+        let allowed_colors = self
+            .iter_enums_field("AllowedColors")
+            .expect("AllowedColors should be enum array level field.")
+            .map(|color_str| color_str.into())
+            .collect::<Vec<LightColor>>();
+
+        enum_map! {
+            val => allowed_colors.contains(&val),
+        }
     }
 
     fn level_box(&self) -> Rect {

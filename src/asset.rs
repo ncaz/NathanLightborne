@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use bevy::prelude::*;
+use bevy::{prelude::*, render::RenderApp};
 
 type InsertLoadedResource = fn(&mut World, &UntypedHandle);
 
@@ -57,6 +57,12 @@ impl Plugin for AssetLoadPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ResourceHandles>();
         app.add_systems(PreUpdate, load_resource_assets);
+
+        let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
+            return;
+        };
+        render_app.init_resource::<ResourceHandles>();
+        render_app.add_systems(PreUpdate, load_resource_assets);
     }
 }
 

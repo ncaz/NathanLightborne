@@ -1,16 +1,17 @@
-use bevy::{prelude::*, utils::HashMap};
-use bevy_rapier2d::prelude::*;
+use avian2d::prelude::*;
+use bevy::{ecs::entity::EntityHashMap, prelude::*};
 
-use super::{
-    render::{LightMaterial, LightRenderData},
-    BlackRayComponent, LightBeamSource, LightColor, LightSegmentZMarker, LIGHT_SPEED,
-};
 use crate::{
     camera::HIGHRES_LAYER,
-    level::{mirror::Mirror, sensor::LightSensor},
-    lighting::LineLight2d,
-    particle::spark::SparkExplosionEvent,
-    shared::GroupLabel,
+    game::{
+        light::{
+            render::{LightMaterial, LightRenderData},
+            HitByLight, LightBeamSource, LightColor, LIGHT_SPEED,
+        },
+        lighting::LineLight2d,
+        Layers,
+    },
+    shared::ResetLevels,
 };
 
 /// Marker [`Component`] used to query for light segments.
@@ -33,12 +34,15 @@ pub struct LightSegmentBundle {
 /// despawned every frame. See [`simulate_light_sources`] for details.
 #[derive(Resource, Default)]
 pub struct LightSegmentCache {
-    segments: HashMap<Entity, (Vec<Entity>, LightColor)>,
+    segments: EntityHashMap<(Vec<Entity>, LightColor)>,
 }
 
-/// Local variable for [`simulate_light_sources`] used to store the handle to the audio SFX
+#[derive(Resource, Asset, Clone, Reflect)]
+#[reflect(Resource)]
 pub struct LightBounceSfx {
+    #[dependency]
     bounce: [Handle<AudioSource>; 3],
+    #[dependency]
     reflect: [Handle<AudioSource>; 3],
 }
 
@@ -98,41 +102,31 @@ pub struct PrevLightBeamPlayback {
 const LIGHT_MAX_SEGMENTS: usize = 15;
 
 pub fn play_light_beam(
-    rapier_context: &mut RapierContext,
+    spatial_query: &SpatialQuery,
     source: &LightBeamSource,
-    black_ray_qry: &Query<(Entity, &BlackRayComponent)>,
-    q_mirrors: &Query<&Mirror>,
+    // black_ray_qry: &Query<(Entity, &BlackRayComponent)>,
+    // q_mirrors: &Query<&Mirror>,
 ) -> LightBeamPlayback {
     let mut ray_pos = source.start_pos;
     let mut ray_dir = source.start_dir;
     let collision_groups = match source.color {
-        LightColor::White => CollisionGroups::new(
-            GroupLabel::WHITE_RAY,
-            GroupLabel::TERRAIN | GroupLabel::PLATFORM | GroupLabel::LIGHT_SENSOR,
+        LightColor::White => {
+            CollisionLayers::new(Layers::WhiteRay, [Layers::Terrain, Layers::LightSensor])
+        }
+        // LightColor::Black => {
+        //     CollisionLayers::new(Layers::BlackRay, Layers::Terrain, Layers::LightSensor)
+        // }
+        LightColor::Blue => CollisionLayers::new(
+            Layers::BlueRay,
+            [Layers::Terrain, Layers::LightSensor, Layers::WhiteRay],
         ),
-        LightColor::Black => CollisionGroups::new(
-            GroupLabel::BLACK_RAY,
-            GroupLabel::TERRAIN | GroupLabel::PLATFORM | GroupLabel::LIGHT_SENSOR,
-        ),
-        LightColor::Blue => CollisionGroups::new(
-            GroupLabel::BLUE_RAY,
-            GroupLabel::TERRAIN
-                | GroupLabel::PLATFORM
-                | GroupLabel::LIGHT_SENSOR
-                | GroupLabel::WHITE_RAY
-                | GroupLabel::BLACK_RAY,
-        ),
-        _ => CollisionGroups::new(
-            GroupLabel::LIGHT_RAY,
-            GroupLabel::TERRAIN
-                | GroupLabel::PLATFORM
-                | GroupLabel::LIGHT_SENSOR
-                | GroupLabel::WHITE_RAY
-                | GroupLabel::BLACK_RAY,
+        _ => CollisionLayers::new(
+            Layers::LightRay,
+            [Layers::Terrain, Layers::LightSensor, Layers::WhiteRay],
         ),
     };
 
-    let mut ray_qry = QueryFilter::new().groups(collision_groups);
+    let mut ray_qry = SpatialQueryFilter::default().with_mask(collision_groups.filters);
     let mut remaining_time = source.time_traveled;
 
     let mut playback = LightBeamPlayback {
@@ -145,44 +139,46 @@ pub fn play_light_beam(
     let num_segments = source.color.num_bounces() + 1;
 
     let mut i = 0;
-    let mut extra_bounces_from_mirror = 0;
-    while i < num_segments + extra_bounces_from_mirror && i < LIGHT_MAX_SEGMENTS {
-        let Some((entity, intersection)) =
-            rapier_context.cast_ray_and_get_normal(ray_pos, ray_dir, remaining_time, true, ray_qry)
+    // let mut extra_bounces_from_mirror = 0;
+    // while i < num_segments + extra_bounces_from_mirror && i < LIGHT_MAX_SEGMENTS {
+    while i < num_segments && i < LIGHT_MAX_SEGMENTS {
+        let Some(hit) = spatial_query.cast_ray(ray_pos, ray_dir, remaining_time, true, &ray_qry)
         else {
             let final_point = ray_pos + ray_dir * remaining_time;
             playback.elapsed_time += remaining_time;
             playback.end_point = Some(final_point);
             break;
         };
-        if q_mirrors.contains(entity) {
-            extra_bounces_from_mirror += 1;
-        }
+        // if q_mirrors.contains(hit.entity) {
+        //     extra_bounces_from_mirror += 1;
+        // }
 
         // if inside something???
         let mut ignore_entity = true;
-        if intersection.time_of_impact < 0.01 {
+        if hit.distance < 0.01 {
             ignore_entity = false;
         }
 
-        playback.elapsed_time += intersection.time_of_impact;
-        remaining_time -= intersection.time_of_impact;
+        playback.elapsed_time += hit.distance;
+        remaining_time -= hit.distance;
+        let hit_point = ray_pos + *ray_dir * hit.distance;
 
         playback.intersections.push(LightBeamIntersection {
-            entity,
-            point: intersection.point,
+            entity: hit.entity,
+            point: hit_point,
             time: playback.elapsed_time,
         });
 
-        ray_pos = intersection.point;
-        ray_dir = ray_dir.reflect(intersection.normal);
+        ray_pos = hit_point;
+        ray_dir =
+            Dir2::new((Vec2::from(ray_dir)).reflect(hit.normal)).expect("cast dir cannot be 0");
         if ignore_entity {
-            ray_qry = ray_qry.exclude_collider(entity);
+            ray_qry = ray_qry.with_excluded_entities([hit.entity]);
         }
 
-        if black_ray_qry.get(entity).is_ok() {
-            break;
-        }
+        // if black_ray_qry.get(hit.entity).is_ok() {
+        //     break;
+        // }
         i += 1;
     }
 
@@ -203,23 +199,16 @@ pub struct LightBeamPoints(Vec<Vec2>);
 pub fn simulate_light_sources(
     mut commands: Commands,
     mut q_light_sources: Query<(Entity, &mut LightBeamSource, &mut PrevLightBeamPlayback)>,
-    q_black_ray: Query<(Entity, &BlackRayComponent)>,
-    mut q_rapier: Query<&mut RapierContext>,
-    mut q_light_sensor: Query<&mut LightSensor>,
+    // q_black_ray: Query<(Entity, &BlackRayComponent)>,
+    spatial_query: SpatialQuery,
+    // q_mirrors: Query<&Mirror>,
     // used to tell if a collision was against a white beam (a different sound is played)
-    q_segments: Query<&LightSegment, Without<LightSegmentZMarker>>,
-    light_bounce_sfx: Local<LightBounceSfx>,
-    q_mirrors: Query<&Mirror>,
-    mut ev_spark_explosion: EventWriter<SparkExplosionEvent>,
+    q_segments: Query<&LightSegment>,
+    light_bounce_sfx: Res<LightBounceSfx>,
+    // mut ev_spark_explosion: EventWriter<SparkExplosionEvent>,
 ) {
-    let Ok(rapier_context) = q_rapier.get_single_mut() else {
-        return;
-    };
-    // Reborrow!!!
-    let rapier_context = rapier_context.into_inner();
-
     for (source_entity, mut source, mut prev_playback) in q_light_sources.iter_mut() {
-        let playback = play_light_beam(rapier_context, &source, &q_black_ray, &q_mirrors);
+        let playback = play_light_beam(&spatial_query, &source);
         let mut pts: Vec<Vec2> = playback.iter_points(&source).collect();
 
         let intersections = playback.intersections.len();
@@ -243,9 +232,11 @@ pub fn simulate_light_sources(
                 // handle remove before add because it could be the case that both are true
                 if remove_intersection {
                     pts[i + 1] = prev_x.unwrap().point;
-                    if let Ok(mut sensor) = q_light_sensor.get_mut(prev_x.unwrap().entity) {
-                        sensor.hit_by[source.color] = false;
-                    }
+                    commands.trigger(HitByLight {
+                        entity: prev_x.unwrap().entity,
+                        color: source.color,
+                        hit: false,
+                    });
                     prev_playback.intersections[i] = None;
                     source.time_traveled = prev_x.unwrap().time;
 
@@ -254,17 +245,21 @@ pub fn simulate_light_sources(
                         let Some(intersection) = prev_playback.intersections[j] else {
                             continue;
                         };
-                        if let Ok(mut sensor) = q_light_sensor.get_mut(intersection.entity) {
-                            sensor.hit_by[source.color] = false;
-                        }
+                        commands.trigger(HitByLight {
+                            entity: intersection.entity,
+                            color: source.color,
+                            hit: false,
+                        });
                     }
                 }
 
                 if add_intersection {
                     pts[i + 1] = new_x.point;
-                    if let Ok(mut sensor) = q_light_sensor.get_mut(new_x.entity) {
-                        sensor.hit_by[source.color] = true;
-                    }
+                    commands.trigger(HitByLight {
+                        entity: new_x.entity,
+                        color: source.color,
+                        hit: true,
+                    });
                     if i >= prev_playback.intersections.len() {
                         assert!(i == prev_playback.intersections.len());
                         prev_playback.intersections.push(Some(new_x));
@@ -274,7 +269,7 @@ pub fn simulate_light_sources(
                     source.time_traveled = new_x.time;
                 }
 
-                if play_sound && source.color != LightColor::Black {
+                if play_sound {
                     let reflect = match q_segments.get(new_x.entity) {
                         Ok(segment) => segment.color == LightColor::White,
                         _ => false,
@@ -291,10 +286,10 @@ pub fn simulate_light_sources(
                             .unwrap_or(&light_bounce_sfx.bounce[2])
                     }
                     .clone();
-                    ev_spark_explosion.send(SparkExplosionEvent {
-                        pos: new_x.point,
-                        color: source.color.light_beam_color(),
-                    });
+                    // ev_spark_explosion.send(SparkExplosionEvent {
+                    //     pos: new_x.point,
+                    //     color: source.color.light_beam_color(),
+                    // });
                     commands
                         .entity(new_x.entity)
                         .with_child((AudioPlayer::new(audio), PlaybackSettings::DESPAWN));
@@ -330,18 +325,16 @@ pub fn spawn_needed_segments(
 
         while segment_cache.segments[&entity].0.len() < segments.min(LIGHT_MAX_SEGMENTS) {
             let id = commands
-                .spawn((
-                    LightSegmentBundle {
-                        segment: LightSegment {
-                            color: source.color,
-                        },
-                        mesh: light_render_data.mesh.clone(),
-                        material: light_render_data.material_map[source.color].clone(),
-                        visibility: Visibility::Hidden,
-                        transform: Transform::default(),
+                .spawn(LightSegmentBundle {
+                    segment: LightSegment {
+                        color: source.color,
                     },
-                    HIGHRES_LAYER,
-                ))
+                    mesh: light_render_data.mesh.clone(),
+                    material: light_render_data.material_map[source.color].clone(),
+                    visibility: Visibility::Hidden,
+                    transform: Transform::default(),
+                })
+                .insert(HIGHRES_LAYER)
                 .with_child(LineLight2d {
                     color: source.color.lighting_color().extend(1.0),
                     half_length: 10.0,
@@ -352,36 +345,36 @@ pub fn spawn_needed_segments(
             // White beams need colliders
             if source.color == LightColor::White {
                 commands.entity(id).insert((
-                    Collider::cuboid(0.5, 0.5),
+                    Collider::rectangle(1., 1.),
                     Sensor,
-                    CollisionGroups::new(
-                        GroupLabel::WHITE_RAY,
-                        GroupLabel::TERRAIN
-                            | GroupLabel::PLATFORM
-                            | GroupLabel::LIGHT_SENSOR
-                            | GroupLabel::LIGHT_RAY
-                            | GroupLabel::BLUE_RAY
-                            | GroupLabel::BLACK_RAY,
+                    CollisionLayers::new(
+                        Layers::WhiteRay,
+                        [
+                            Layers::Terrain,
+                            Layers::LightSensor,
+                            Layers::LightRay,
+                            Layers::BlueRay,
+                        ],
                     ),
                 ));
             }
-            // Black beams need Black_Ray_Component and colliders
-            if source.color == LightColor::Black {
-                commands.entity(id).insert((
-                    BlackRayComponent,
-                    Sensor,
-                    Collider::cuboid(0.5, 0.5),
-                    CollisionGroups::new(
-                        GroupLabel::BLACK_RAY,
-                        GroupLabel::TERRAIN
-                            | GroupLabel::PLATFORM
-                            | GroupLabel::LIGHT_SENSOR
-                            | GroupLabel::LIGHT_RAY
-                            | GroupLabel::BLUE_RAY
-                            | GroupLabel::WHITE_RAY,
-                    ),
-                ));
-            }
+            // // Black beams need Black_Ray_Component and colliders
+            // if source.color == LightColor::Black {
+            //     commands.entity(id).insert((
+            //         BlackRayComponent,
+            //         Sensor,
+            //         Collider::cuboid(0.5, 0.5),
+            //         CollisionGroups::new(
+            //             GroupLabel::BLACK_RAY,
+            //             GroupLabel::TERRAIN
+            //                 | GroupLabel::PLATFORM
+            //                 | GroupLabel::LIGHT_SENSOR
+            //                 | GroupLabel::LIGHT_RAY
+            //                 | GroupLabel::BLUE_RAY
+            //                 | GroupLabel::WHITE_RAY,
+            //         ),
+            //     ));
+            // }
             segment_cache.segments.get_mut(&entity).unwrap().0.push(id);
             //segment_cache.segments[&source.color].push(id);
         }
@@ -393,11 +386,7 @@ pub fn visually_sync_segments(
     segment_cache: Res<LightSegmentCache>,
     mut q_segments: Query<(&Children, &mut Transform, &mut Visibility), With<LightSegment>>,
     mut q_line_lights: Query<&mut LineLight2d>,
-    q_light_segment_z: Query<&GlobalTransform, With<LightSegmentZMarker>>,
 ) {
-    let Ok(light_segment_z) = q_light_segment_z.get_single() else {
-        return;
-    };
     for (entity, _source, pts) in q_light_sources.iter() {
         let pts = &pts.0;
         // use the light beam path to set the transform of the segments currently in the cache
@@ -415,9 +404,8 @@ pub fn visually_sync_segments(
             };
 
             if i + 1 < pts.len() && pts[i].distance(pts[i + 1]) > 0.1 {
-                let midpoint = pts[i]
-                    .midpoint(pts[i + 1])
-                    .extend(light_segment_z.translation().z);
+                // NOTE: hardcode here should be okay
+                let midpoint = pts[i].midpoint(pts[i + 1]).extend(4.);
                 let scale = Vec3::new(pts[i].distance(pts[i + 1]), 1., 1.);
                 let rotation = (pts[i + 1] - pts[i]).to_angle();
 
@@ -448,18 +436,16 @@ pub fn tick_light_sources(mut q_light_sources: Query<&mut LightBeamSource>) {
 /// [`System`] that is responsible for hiding all of the [`LightSegment`](LightSegmentBundle)s
 /// and despawning [`LightBeamSource`]s when the level changes.
 pub fn cleanup_light_sources(
+    _: On<ResetLevels>,
     mut commands: Commands,
     q_light_sources: Query<(Entity, &LightBeamSource)>,
     segment_cache: Res<LightSegmentCache>,
     mut q_segments: Query<(&mut Transform, &mut Visibility), With<LightSegment>>,
 ) {
-    // FIXME: should make these entities children of the level so that they are despawned
-    // automagically (?)
-
-    for (entity, light_beam_source) in q_light_sources.iter() {
-        if light_beam_source.color != LightColor::Black {
-            commands.entity(entity).despawn_recursive();
-        }
+    for (entity, _) in q_light_sources.iter() {
+        // if light_beam_source.color != LightColor::Black {
+        commands.entity(entity).despawn();
+        // }
     }
 
     segment_cache.segments.iter().for_each(|(_, items)| {

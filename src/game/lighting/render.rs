@@ -2,11 +2,11 @@ use std::ops::Range;
 
 use bevy::{
     ecs::{
-        entity::EntityHashSet,
         query::{QueryItem, ROQueryItem},
         system::SystemParamItem,
     },
     math::FloatOrd,
+    platform::collections::HashSet,
     prelude::*,
     render::{
         render_graph::{NodeRunError, RenderGraphContext, RenderLabel, ViewNode},
@@ -20,11 +20,11 @@ use bevy::{
             *,
         },
         renderer::{RenderContext, RenderDevice},
-        sync_world::{MainEntity, RenderEntity},
-        view::{RenderVisibleEntities, ViewTarget},
+        sync_world::MainEntity,
+        view::{ExtractedView, RenderVisibleEntities, RetainedViewEntity, ViewTarget},
         Extract,
     },
-    sprite::SetMesh2dViewBindGroup,
+    sprite_render::SetMesh2dViewBindGroup,
 };
 
 use super::{
@@ -79,7 +79,7 @@ impl PhaseItem for DeferredLighting2d {
         &mut self.batch_range
     }
     fn extra_index(&self) -> PhaseItemExtraIndex {
-        self.extra_index
+        self.extra_index.clone()
     }
     fn batch_range_and_extra_index_mut(&mut self) -> (&mut Range<u32>, &mut PhaseItemExtraIndex) {
         (&mut self.batch_range, &mut self.extra_index)
@@ -91,6 +91,10 @@ impl SortedPhaseItem for DeferredLighting2d {
 
     fn sort_key(&self) -> Self::SortKey {
         self.sort_key
+    }
+
+    fn indexed(&self) -> bool {
+        true
     }
 }
 
@@ -125,18 +129,32 @@ impl FromWorld for PostProcessRes {
     }
 }
 
+pub fn post_process_layout(render_device: &Res<RenderDevice>) -> BindGroupLayout {
+    render_device.create_bind_group_layout(
+        "post_process_layout",
+        &BindGroupLayoutEntries::sequential(
+            ShaderStages::FRAGMENT,
+            (
+                texture_2d(TextureSampleType::Float { filterable: true }),
+                sampler(SamplerBindingType::NonFiltering),
+            ),
+        ),
+    )
+}
+
 pub fn extract_deferred_lighting_2d_camera_phases(
     mut phases: ResMut<ViewSortedRenderPhases<DeferredLighting2d>>,
-    cameras_2d: Extract<Query<(RenderEntity, &Camera), With<Camera2d>>>,
-    mut live_entities: Local<EntityHashSet>,
+    cameras_2d: Extract<Query<(Entity, &Camera), With<Camera2d>>>,
+    mut live_entities: Local<HashSet<RetainedViewEntity>>,
 ) {
     live_entities.clear();
     for (entity, camera) in &cameras_2d {
         if !camera.is_active {
             continue;
         }
-        phases.insert_or_clear(entity);
-        live_entities.insert(entity);
+        let retained_view_entity = RetainedViewEntity::new(entity.into(), None, 0);
+        phases.insert_or_clear(retained_view_entity);
+        live_entities.insert(retained_view_entity);
     }
     // Clear out all dead views.
     phases.retain(|camera_entity, _| live_entities.contains(camera_entity));
@@ -151,12 +169,16 @@ pub fn queue_deferred_lighting(
     q_line_lights: Query<(&LineLight2dBounds, Option<&Occluder2dGroups>), With<ExtractLineLight2d>>,
     q_occluder: Query<(&Occluder2dBounds, Option<&Occluder2dGroups>), With<ExtractOccluder2d>>,
     mut deferred_lighting_phases: ResMut<ViewSortedRenderPhases<DeferredLighting2d>>,
-    views: Query<(Entity, &MainEntity, &RenderVisibleEntities), With<AmbientLight2d>>,
+    views: Query<
+        (Entity, &ExtractedView, &MainEntity, &RenderVisibleEntities),
+        With<AmbientLight2d>,
+    >,
 ) {
     // TODO: ignore invisible entities
 
-    for (view_e, view_me, visible_entities) in views.iter() {
-        let Some(phase) = deferred_lighting_phases.get_mut(&view_e) else {
+    for (view_e, extract_view, view_me, visible_entities) in views.iter() {
+        let Some(phase) = deferred_lighting_phases.get_mut(&extract_view.retained_view_entity)
+        else {
             continue;
         };
 
@@ -190,7 +212,7 @@ pub fn queue_deferred_lighting(
                 entity,
                 batch_range: 0..1,
                 sort_key: FloatOrd(sort_key),
-                extra_index: PhaseItemExtraIndex::NONE,
+                extra_index: PhaseItemExtraIndex::None,
             });
             sort_key += 1.0;
         };
@@ -211,7 +233,7 @@ pub fn queue_deferred_lighting(
         );
 
         // Start rendering lights
-        for (pl_e, pl_me) in visible_entities.iter::<With<LineLight2d>>() {
+        for (pl_e, pl_me) in visible_entities.iter::<LineLight2d>() {
             let Ok((light_bounds, light_group)) = q_line_lights.get(*pl_e) else {
                 continue;
             };
@@ -229,7 +251,7 @@ pub fn queue_deferred_lighting(
             if light_group != Occluder2dGroups::NONE {
                 // filter occluders
                 let mut occluders: Vec<(Entity, MainEntity)> = vec![];
-                for (ocl_e, ocl_me) in visible_entities.iter::<With<Occluder2d>>() {
+                for (ocl_e, ocl_me) in visible_entities.iter::<Occluder2d>() {
                     let Ok((occluder_bounds, occluder_group)) = q_occluder.get(*ocl_e) else {
                         continue;
                     };
@@ -300,7 +322,11 @@ pub type RenderOccluder = (
     DrawOccluder2d,
 );
 
-pub type RenderLineLight2d = (SetItemPipeline, SetLineLight2dBindGroup<2>, DrawLineLight2d);
+pub type RenderLineLight2d = (
+    SetItemPipeline,
+    // SetLineLight2dBindGroup<2>,
+    DrawLineLight2d,
+);
 
 pub type ResetOccluderStencil = (SetItemPipeline, DrawTriangle);
 
@@ -312,8 +338,8 @@ impl<P: PhaseItem> RenderCommand<P> for DrawTriangle {
 
     fn render<'w>(
         _item: &P,
-        _view: ROQueryItem<'w, Self::ViewQuery>,
-        _entity: Option<ROQueryItem<'w, Self::ItemQuery>>,
+        _view: ROQueryItem<'w, '_, Self::ViewQuery>,
+        _entity: Option<ROQueryItem<'w, '_, Self::ItemQuery>>,
         _param: SystemParamItem<'w, '_, Self::Param>,
         pass: &mut TrackedRenderPass<'w>,
     ) -> RenderCommandResult {
@@ -331,21 +357,26 @@ pub struct DeferredLightingNode;
 
 impl ViewNode for DeferredLightingNode {
     type ViewQuery = (
+        &'static ExtractedView,
         &'static ViewTarget,
         &'static OccluderCountTexture,
         &'static AmbientLight2d,
     );
 
-    fn run<'w>(
+    fn run<'w, 's>(
         &self,
         graph: &mut RenderGraphContext,
         render_context: &mut RenderContext<'w>,
-        (view_target, occluder_count_texture, _ambient_lighting): QueryItem<'w, Self::ViewQuery>,
+        (extract_view, view_target, occluder_count_texture, _ambient_lighting): QueryItem<
+            'w,
+            's,
+            Self::ViewQuery,
+        >,
         world: &'w World,
     ) -> Result<(), NodeRunError> {
         let lighting_phases = world.resource::<ViewSortedRenderPhases<DeferredLighting2d>>();
         let view_entity = graph.view_entity();
-        let Some(lighting_phase) = lighting_phases.get(&view_entity) else {
+        let Some(lighting_phase) = lighting_phases.get(&extract_view.retained_view_entity) else {
             return Ok(());
         };
 
@@ -363,6 +394,7 @@ impl ViewNode for DeferredLightingNode {
                 view: post_process.destination,
                 resolve_target: None,
                 ops: Operations::default(),
+                depth_slice: None,
             })],
             depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
                 view: occluder_count_texture.0.view(),
@@ -377,6 +409,8 @@ impl ViewNode for DeferredLightingNode {
         });
 
         render_pass.set_bind_group(0, &post_process_group, &[]);
+
+        // FIXME: custom viewport not supported
 
         if !lighting_phase.items.is_empty() {
             if let Err(err) = lighting_phase.render(&mut render_pass, world, view_entity) {

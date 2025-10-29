@@ -1,12 +1,16 @@
 use avian2d::prelude::*;
-use bevy::{camera::RenderTarget, core_pipeline::tonemapping::Tonemapping, prelude::*};
+use bevy::{
+    camera::RenderTarget, core_pipeline::tonemapping::Tonemapping, prelude::*, render::view::Hdr,
+};
 
 use crate::{
     camera::{build_render_target, HIGHRES_LAYER, LYRA_LAYER},
     game::{
         animation::AnimationConfig,
+        lighting::LineLight2d,
         lyra::{
             animation::{LyraAnimationPlugin, PlayerAnimationType, ANIMATION_FRAMES},
+            beam::{BeamControllerPlugin, PlayerLightInventory},
             controller::{
                 CachedLinearVelocity, CharacterControllerBundle, CharacterControllerPlugin,
             },
@@ -19,6 +23,7 @@ use crate::{
 };
 
 mod animation;
+mod beam;
 mod controller;
 mod strand;
 
@@ -33,6 +38,7 @@ impl Plugin for LyraPlugin {
         app.add_plugins(CharacterControllerPlugin);
         app.add_plugins(LyraStrandPlugin);
         app.add_plugins(LyraAnimationPlugin);
+        app.add_plugins(BeamControllerPlugin);
         app.add_systems(OnEnter(GameState::InGame), spawn_lyra);
         app.add_systems(OnEnter(GameState::InGame), spawn_lyra_cam.after(spawn_lyra));
         app.add_systems(OnExit(GameState::InGame), despawn_lyra);
@@ -98,6 +104,7 @@ pub fn spawn_lyra(
             Collider::rectangle(12.0, 16.0),
         )])))
         .insert(CachedLinearVelocity(Vec2::ZERO))
+        .insert(PlayerLightInventory::new())
         .insert(PlayerAnimationType::Idle)
         .insert(AnimationConfig::from(PlayerAnimationType::Idle));
 
@@ -116,12 +123,12 @@ pub fn spawn_lyra(
         .insert(CollisionLayers::new(
             Layers::PlayerHurtbox,
             [Layers::DangerBox, Layers::Terrain, Layers::CrystalShard],
+        ))
+        .insert(LineLight2d::point(
+            Vec4::new(1.0, 1.0, 1.0, 1.0),
+            40.0,
+            0.01,
         ));
-    // .insert(LineLight2d::point(
-    //     Vec4::new(1.0, 1.0, 1.0, 1.0),
-    //     40.0,
-    //     0.01,
-    // ));
 }
 
 #[derive(Component)]
@@ -146,6 +153,7 @@ pub fn spawn_lyra_cam(
             clear_color: ClearColorConfig::Custom(Color::NONE),
             ..default()
         })
+        .insert(Hdr)
         .insert(Tonemapping::TonyMcMapface)
         .insert(lyra_projection)
         .insert(Transform::default())

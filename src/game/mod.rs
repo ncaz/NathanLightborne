@@ -6,7 +6,8 @@ use crate::{
     camera::HIGHRES_LAYER,
     game::{
         animation::SpriteAnimationPlugin, camera_op::CameraOpPlugin, cursor::CursorCoordsPlugin,
-        defs::LevelPlugin, lyra::LyraPlugin, setup::LevelSetupPlugin, switch::SwitchLevelPlugin,
+        defs::LevelPlugin, light::LightBeamPlugin, lighting::DeferredLightingPlugin,
+        lyra::LyraPlugin, setup::LevelSetupPlugin, switch::SwitchLevelPlugin,
     },
     shared::{GameState, PlayState},
 };
@@ -15,13 +16,14 @@ mod animation;
 mod camera_op;
 mod cursor;
 mod defs;
+pub mod light;
 pub mod lyra;
 pub mod setup;
 mod switch;
 // mod input;
 // mod level;
 // mod light;
-// mod lighting;
+pub mod lighting;
 // mod particle;
 // mod player;
 
@@ -38,6 +40,8 @@ impl Plugin for GamePlugin {
         app.add_plugins(LyraPlugin);
         app.add_plugins(LevelPlugin);
         app.add_plugins(CameraOpPlugin);
+        app.add_plugins(LightBeamPlugin);
+        app.add_plugins(DeferredLightingPlugin);
         app.configure_sets(
             PreUpdate,
             LevelSystems::Processing
@@ -76,7 +80,7 @@ pub enum Layers {
     WhiteRay,
     BlueRay,
     CrystalShard,
-    BlackRay,
+    // BlackRay,
 }
 
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]

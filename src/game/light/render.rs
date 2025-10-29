@@ -1,7 +1,9 @@
 use bevy::{
     prelude::*,
-    render::render_resource::{AsBindGroup, ShaderRef},
-    sprite::{AlphaMode2d, Material2d},
+    render::render_resource::AsBindGroup,
+    shader::ShaderRef,
+    sprite_render::{AlphaMode2d, Material2d}, // render::render_resource::{AsBindGroup, ShaderRef},
+                                              // sprite::{AlphaMode2d, Material2d},
 };
 use enum_map::{enum_map, EnumMap};
 
@@ -35,14 +37,12 @@ impl FromWorld for LightRenderData {
                 LightColor::Purple => materials.add(LightMaterial::from(LightColor::Purple)).into(),
                 LightColor::White => materials.add(LightMaterial::from(LightColor::White)).into(),
                 LightColor::Blue => materials.add(LightMaterial::from(LightColor::Blue)).into(),
-                LightColor::Black => materials.add(LightMaterial::from(LightColor::Black)).into(),
+                // LightColor::Black => materials.add(LightMaterial::from(LightColor::Black)).into(),
             },
         }
     }
 }
 
-/// Custom [`Material2d`] that will use our custom WGSL shader to draw
-/// [`LightSegment`](super::segments::LightSegmentBundle)s.
 #[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]
 pub struct LightMaterial {
     #[uniform(0)]
