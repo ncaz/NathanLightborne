@@ -43,7 +43,7 @@ impl Plugin for GamePlugin {
                 .with_length_unit(8.)
                 .with_collision_hooks::<OneWayPlatformHooks>(),
         );
-        app.add_plugins(PhysicsDebugPlugin);
+        // app.add_plugins(PhysicsDebugPlugin);
         app.add_plugins(CursorCoordsPlugin);
         app.add_plugins(SpriteAnimationPlugin);
         app.add_plugins(SwitchLevelPlugin);

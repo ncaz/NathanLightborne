@@ -1,5 +1,8 @@
 use avian2d::prelude::*;
-use bevy::prelude::*;
+use bevy::{
+    platform::collections::{HashMap, HashSet},
+    prelude::*,
+};
 
 use crate::{
     camera::HIGHRES_LAYER,
@@ -16,10 +19,14 @@ use crate::{
 };
 
 /// Marker [`Component`] used to query for light segments.
-#[derive(Default, Component, Clone, Debug)]
+#[derive(Default, Component, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct LightSegment {
     pub color: LightColor,
+    pub index: usize,
 }
+
+#[derive(Resource, Deref, DerefMut, Default)]
+pub struct LightSegmentCache(HashMap<LightSegment, (Transform, Entity)>);
 
 /// [`Bundle`] used in the initialization of the [`LightSegmentCache`] to spawn segment entities.
 #[derive(Bundle, Debug, Clone, Default)]
@@ -198,7 +205,13 @@ pub fn simulate_light_sources(
     light_bounce_sfx: Res<LightBounceSfx>,
     mut ev_spark_explosion: MessageWriter<SparkExplosionEvent>,
     light_render_data: Res<LightRenderData>,
+    mut segment_cache: ResMut<LightSegmentCache>,
 ) {
+    let mut all_segments = segment_cache
+        .iter()
+        .map(|(k, _)| k.clone())
+        .collect::<HashSet<LightSegment>>();
+
     for (mut source, mut prev_playback) in q_light_sources.iter_mut() {
         let playback = play_light_beam(&spatial_query, &source);
         let mut pts: Vec<Vec2> = playback.iter_points(&source).collect();
@@ -321,42 +334,68 @@ pub fn simulate_light_sources(
                 .with_scale(scale)
                 .with_rotation(Quat::from_rotation_z(rotation));
 
-            let id = commands
-                .spawn(LightSegmentBundle {
-                    segment: LightSegment {
-                        color: source.color,
-                    },
-                    mesh: light_render_data.mesh.clone(),
-                    material: light_render_data.material_map[source.color].clone(),
-                    visibility: Visibility::Visible,
-                    transform,
-                })
-                .insert(HIGHRES_LAYER)
-                .with_child(LineLight2d {
-                    color: source.color.lighting_color().extend(1.0),
-                    half_length: scale.x / 2.0,
-                    radius: 20.0,
-                    volumetric_intensity: 0.04,
-                })
-                .id();
+            let segment = LightSegment {
+                color: source.color,
+                index: i,
+            };
 
-            // White beams need colliders
-            if source.color == LightColor::White {
-                commands.entity(id).insert((
-                    Collider::rectangle(1., 1.),
-                    Sensor,
-                    CollisionLayers::new(
-                        Layers::WhiteRay,
-                        [
-                            Layers::Terrain,
-                            Layers::LightSensor,
-                            Layers::LightRay,
-                            Layers::BlueRay,
-                        ],
-                    ),
-                ));
-            }
+            let entity = match segment_cache.get(&segment) {
+                None => {
+                    info!("Spawned segment!");
+                    let seg = commands
+                        .spawn(transform)
+                        .insert(LightSegmentBundle {
+                            segment: LightSegment {
+                                color: source.color,
+                                index: i,
+                            },
+                            mesh: light_render_data.mesh.clone(),
+                            material: light_render_data.material_map[source.color].clone(),
+                            visibility: Visibility::Visible,
+                            transform,
+                        })
+                        .insert(HIGHRES_LAYER)
+                        .with_child(LineLight2d {
+                            color: source.color.lighting_color().extend(1.0),
+                            half_length: scale.x / 2.0,
+                            radius: 20.0,
+                            volumetric_intensity: 0.04,
+                        })
+                        .id();
+
+                    if source.color == LightColor::White {
+                        commands.entity(seg).insert((
+                            Collider::rectangle(1., 1.),
+                            Sensor,
+                            CollisionLayers::new(
+                                Layers::WhiteRay,
+                                [
+                                    Layers::Terrain,
+                                    Layers::LightSensor,
+                                    Layers::LightRay,
+                                    Layers::BlueRay,
+                                ],
+                            ),
+                        ));
+                    }
+                    all_segments.remove(&segment);
+                    seg
+                }
+                Some((t, e)) => {
+                    all_segments.remove(&segment);
+                    if *t == transform {
+                        continue;
+                    }
+                    commands.entity(*e).insert(transform).id()
+                }
+            };
+            segment_cache.insert(segment.clone(), (transform, entity));
         }
+    }
+
+    for segment in all_segments {
+        commands.entity(segment_cache[&segment].1).despawn();
+        segment_cache.remove(&segment);
     }
 }
 
@@ -371,6 +410,7 @@ pub fn cleanup_light_sources(
     mut commands: Commands,
     q_light_sources: Query<Entity, With<LightBeamSource>>,
     q_segments: Query<Entity, With<LightSegment>>,
+    mut cache: ResMut<LightSegmentCache>,
 ) {
     for e in q_light_sources.iter() {
         commands.entity(e).despawn();
@@ -378,13 +418,5 @@ pub fn cleanup_light_sources(
     for e in q_segments.iter() {
         commands.entity(e).despawn();
     }
-}
-
-pub fn cleanup_light_segments(
-    mut commands: Commands,
-    q_segments: Query<Entity, With<LightSegment>>,
-) {
-    for e in q_segments.iter() {
-        commands.entity(e).despawn();
-    }
+    cache.clear();
 }

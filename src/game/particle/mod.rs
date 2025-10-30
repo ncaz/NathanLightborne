@@ -7,14 +7,12 @@ use emitter::{
 };
 use noise::{NoiseFn, Simplex};
 use shine::{add_crystal_shine, adjust_crystal_shine_lights};
-use spark::{
-    add_segment_sparks, create_spark_explosions, SegmentTransformMap, SparkExplosionEvent,
-};
+use spark::{add_segment_sparks, create_spark_explosions, SparkExplosionEvent};
 
 use crate::{
     asset::LoadResource,
     game::{
-        particle::{dust::DustAssets, shine::CrystalShineAssets},
+        particle::{dust::DustAssets, shine::CrystalShineAssets, spark::SparkAssets},
         LevelSystems,
     },
 };
@@ -30,12 +28,14 @@ impl Plugin for ParticlePlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<CrystalShineAssets>();
         app.load_resource::<CrystalShineAssets>();
+        app.register_type::<SparkAssets>();
+        app.load_resource::<SparkAssets>();
         app.register_type::<DustAssets>();
         app.load_resource::<DustAssets>();
         app.insert_resource(Wind::new());
         app.insert_resource(DustSpawnStopwatch::default());
-        app.insert_resource(SegmentTransformMap::default());
         app.add_message::<SparkExplosionEvent>();
+        app.add_observer(add_segment_sparks);
         app.add_systems(
             Update,
             (
@@ -49,7 +49,6 @@ impl Plugin for ParticlePlugin {
                 add_crystal_shine,
                 spawn_player_walking_dust,
                 add_crystal_dust,
-                add_segment_sparks,
                 create_spark_explosions,
             )
                 .in_set(LevelSystems::Simulation),

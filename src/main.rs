@@ -1,3 +1,4 @@
+use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
 // use animation::SpriteAnimationPlugin;
 use bevy::prelude::*;
 use bevy::window::PresentMode;
@@ -70,6 +71,7 @@ fn main() {
     app.add_plugins(AssetLoadPlugin);
     app.add_plugins(ConfigPlugin);
     app.add_plugins(LogDiagnosticsPlugin::default());
+    app.add_plugins(FrameTimeDiagnosticsPlugin::default());
     // app.add_plugins(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(8.0).in_fixed_schedule());
     // app.add_plugins(SpriteAnimationPlugin);
     // app.add_plugins(PlayerManagementPlugin);

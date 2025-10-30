@@ -10,10 +10,7 @@ use crate::game::{
         crystal::{CrystalColor, CrystalGroup},
         sensor::ButtonColor,
     },
-    lyra::{
-        controller::{Grounded, MovementInfo},
-        Lyra,
-    },
+    lyra::{controller::Grounded, Lyra},
 };
 
 use super::{ParticleBundle, ParticleOptions, ParticlePhysicsOptions};

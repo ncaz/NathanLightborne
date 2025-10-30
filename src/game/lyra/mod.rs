@@ -115,6 +115,7 @@ pub fn spawn_lyra(
         ))
         .insert(CharacterController)
         .insert(RigidBody::Kinematic)
+        .insert(TransformInterpolation)
         .insert(Collider::compound(vec![(
             Vec2::new(0.0, -2.0),
             Rotation::default(),

@@ -12,8 +12,8 @@ use crate::{
         light::{
             render::{LightMaterial, LightRenderData},
             segments::{
-                cleanup_light_segments, cleanup_light_sources, simulate_light_sources,
-                tick_light_sources, LightBounceSfx, PrevLightBeamPlayback,
+                cleanup_light_sources, simulate_light_sources, tick_light_sources, LightBounceSfx,
+                LightSegmentCache, PrevLightBeamPlayback,
             },
         },
         Layers, LevelSystems,
@@ -38,15 +38,11 @@ impl Plugin for LightBeamPlugin {
         app.register_type::<LightBounceSfx>();
         app.load_resource::<LightBounceSfx>();
         app.init_resource::<LightRenderData>();
+        app.init_resource::<LightSegmentCache>();
         // .register_ldtk_entity::<LightSourceBundle>("LightSource")
         app.add_systems(
             Update,
-            (
-                cleanup_light_segments,
-                ApplyDeferred,
-                tick_light_sources,
-                simulate_light_sources,
-            )
+            (tick_light_sources, simulate_light_sources)
                 .chain()
                 .in_set(LevelSystems::Simulation),
         );
