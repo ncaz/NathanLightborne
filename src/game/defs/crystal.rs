@@ -95,7 +95,7 @@ impl MergedTile for Crystal {
 
         if *crystal_color == CrystalColor::Blue {
             commands.insert(CollisionLayers::new(
-                Layers::Terrain,
+                [Layers::BlueCrystal, Layers::DangerBox],
                 Layers::all_bits() & !Layers::BlueRay.to_bits(),
             ));
         } else {

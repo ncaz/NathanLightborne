@@ -1,4 +1,3 @@
-use avian2d::prelude::CollisionLayers;
 use bevy::{
     prelude::*,
     sprite_render::{AlphaMode2d, Material2dPlugin},
@@ -16,7 +15,7 @@ use crate::{
                 LightSegmentCache, PrevLightBeamPlayback,
             },
         },
-        Layers, LevelSystems,
+        LevelSystems,
     },
 };
 
@@ -192,27 +191,6 @@ pub struct HitByLight {
     pub entity: Entity,
     pub color: LightColor,
     pub hit: bool,
-}
-
-impl From<LightColor> for CollisionLayers {
-    fn from(value: LightColor) -> Self {
-        match value {
-            LightColor::White => {
-                CollisionLayers::new(Layers::WhiteRay, [Layers::Terrain, Layers::LightSensor])
-            }
-            // LightColor::Black => {
-            //     CollisionLayers::new(Layers::BlackRay, Layers::Terrain, Layers::LightSensor)
-            // }
-            LightColor::Blue => CollisionLayers::new(
-                Layers::BlueRay,
-                [Layers::Terrain, Layers::LightSensor, Layers::WhiteRay],
-            ),
-            _ => CollisionLayers::new(
-                Layers::LightRay,
-                [Layers::Terrain, Layers::LightSensor, Layers::WhiteRay],
-            ),
-        }
-    }
 }
 
 /// [`LightMaterial`] corresponding to each of the [`LightColor`]s.

@@ -111,6 +111,7 @@ pub enum Layers {
     DangerBox,
     Spike,
     Terrain,
+    BlueCrystal,
     LightSensor,
     SensorBox,
     // BlackRay,

@@ -114,7 +114,12 @@ pub fn play_light_beam(
     let collision_groups = match source.color {
         LightColor::White => CollisionLayers::new(
             Layers::WhiteRay,
-            [Layers::Terrain, Layers::LightSensor, Layers::Spike],
+            [
+                Layers::Terrain,
+                Layers::LightSensor,
+                Layers::Spike,
+                Layers::BlueCrystal,
+            ],
         ),
         // LightColor::Black => {
         //     CollisionLayers::new(Layers::BlackRay, Layers::Terrain, Layers::LightSensor)
@@ -135,6 +140,7 @@ pub fn play_light_beam(
                 Layers::LightSensor,
                 Layers::WhiteRay,
                 Layers::Spike,
+                Layers::BlueCrystal,
             ],
         ),
     };
@@ -379,12 +385,7 @@ pub fn simulate_light_sources(
                             Sensor,
                             CollisionLayers::new(
                                 Layers::WhiteRay,
-                                [
-                                    Layers::Terrain,
-                                    Layers::LightSensor,
-                                    Layers::LightRay,
-                                    Layers::BlueRay,
-                                ],
+                                [Layers::LightRay, Layers::BlueRay],
                             ),
                         ));
                     }

@@ -119,7 +119,7 @@ pub fn spawn_lyra(
         .entity(player)
         .insert(CollisionLayers::new(
             Layers::PlayerCollider,
-            [Layers::Terrain],
+            [Layers::Terrain, Layers::BlueCrystal],
         ))
         .insert(CharacterController)
         .insert(RigidBody::Kinematic)
@@ -139,7 +139,9 @@ pub fn spawn_lyra(
             )
             .with_max_distance(0.5)
             .with_max_hits(10)
-            .with_query_filter(SpatialQueryFilter::default().with_mask([Layers::Terrain])),
+            .with_query_filter(
+                SpatialQueryFilter::default().with_mask([Layers::Terrain, Layers::BlueCrystal]),
+            ),
         )
         .insert(CachedLinearVelocity(Vec2::ZERO))
         .insert(PlayerLightInventory::new())
@@ -202,7 +204,7 @@ pub fn spawn_lyra_cam(
         .insert(Hdr)
         .insert(Tonemapping::TonyMcMapface)
         .insert(lyra_projection)
-        .insert(Transform::default())
+        .insert(Transform::from_xyz(-0.1, -0.1, 0.0))
         .insert(LYRA_LAYER)
         .insert(ChildOf(*lyra))
         .with_child((
