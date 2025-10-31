@@ -10,7 +10,7 @@ use crate::{
     camera::HIGHRES_LAYER,
     game::{
         cursor::CursorWorldCoords,
-        defs::shard::CrystalShardMods,
+        defs::{mirror::Mirror, shard::CrystalShardMods},
         light::{
             segments::{play_light_beam, PrevLightBeamPlayback},
             LightBeamSource, LightColor,
@@ -302,7 +302,7 @@ pub fn preview_light_path(
     lyra: Single<(&Transform, &PlayerLightInventory), With<Lyra>>,
     cursor: Single<&CursorWorldCoords>,
     mut gizmos: Gizmos,
-    // q_mirror: Query<&Mirror>,
+    q_mirror: Query<&Mirror>,
     // q_black_ray: Query<(Entity, &BlackRayComponent)>,
 ) {
     let (transform, inventory) = lyra.into_inner();
@@ -332,7 +332,7 @@ pub fn preview_light_path(
         &spatial_query,
         &dummy_source,
         // &q_black_ray,
-        // &q_mirror,
+        &q_mirror,
     );
 
     for (a, b) in playback.iter_points(&dummy_source).tuple_windows() {

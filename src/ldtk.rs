@@ -1,6 +1,6 @@
 use bevy::{ecs::system::SystemParam, prelude::*};
 use bevy_ecs_ldtk::{
-    assets::{LdtkProject, LevelIndices},
+    assets::LdtkProject,
     ldtk::{loaded_level::LoadedLevel, Level, Type},
     prelude::LdtkFields,
     LevelIid, LevelSelection,
@@ -71,20 +71,20 @@ impl LevelExt for Level {
     }
 }
 
-pub trait LevelSelectionExt {
-    fn level<'p>(&self, project: &'p LdtkProject) -> Option<&'p Level>;
-}
-
-impl LevelSelectionExt for LevelSelection {
-    fn level<'p>(&self, project: &'p LdtkProject) -> Option<&'p Level> {
-        for (i, level) in project.json_data().levels.iter().enumerate() {
-            if self.is_match(&LevelIndices::in_root(i), level) {
-                return Some(level);
-            }
-        }
-        None
-    }
-}
+// pub trait LevelSelectionExt {
+//     fn level<'p>(&self, project: &'p LdtkProject) -> Option<&'p Level>;
+// }
+//
+// impl LevelSelectionExt for LevelSelection {
+//     fn level<'p>(&self, project: &'p LdtkProject) -> Option<&'p Level> {
+//         for (i, level) in project.json_data().levels.iter().enumerate() {
+//             if self.is_match(&LevelIndices::in_root(i), level) {
+//                 return Some(level);
+//             }
+//         }
+//         None
+//     }
+// }
 
 /// Use only in
 #[derive(SystemParam)]

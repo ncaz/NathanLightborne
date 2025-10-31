@@ -9,11 +9,11 @@ use crate::{
         animation::AnimationConfig,
         camera_op::SnapToLyra,
         defs::{
-            level_completion::handle_start_end_markers,
             one_way_platform::PassThroughOneWayPlatform,
             shard::on_player_intersect_shard,
             tooltip_sign::{display_tooltip_signs, hide_tooltip_signs},
         },
+        level_completion::handle_start_end_markers,
         lighting::LineLight2d,
         lyra::{
             animation::{LyraAnimationPlugin, PlayerAnimationType, ANIMATION_FRAMES},

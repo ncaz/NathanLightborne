@@ -7,6 +7,7 @@ use bevy::{
 use crate::{
     camera::HIGHRES_LAYER,
     game::{
+        defs::mirror::Mirror,
         light::{
             render::{LightMaterial, LightRenderData},
             HitByLight, LightBeamSource, LightColor, LIGHT_SPEED,
@@ -106,7 +107,7 @@ pub fn play_light_beam(
     spatial_query: &SpatialQuery,
     source: &LightBeamSource,
     // black_ray_qry: &Query<(Entity, &BlackRayComponent)>,
-    // q_mirrors: &Query<&Mirror>,
+    q_mirrors: &Query<&Mirror>,
 ) -> LightBeamPlayback {
     let mut ray_pos = source.start_pos;
     let mut ray_dir = source.start_dir;
@@ -151,9 +152,8 @@ pub fn play_light_beam(
     let num_segments = source.color.num_bounces() + 1;
 
     let mut i = 0;
-    // let mut extra_bounces_from_mirror = 0;
-    // while i < num_segments + extra_bounces_from_mirror && i < LIGHT_MAX_SEGMENTS {
-    while i < num_segments && i < LIGHT_MAX_SEGMENTS {
+    let mut extra_bounces_from_mirror = 0;
+    while i < num_segments + extra_bounces_from_mirror && i < LIGHT_MAX_SEGMENTS {
         let Some(hit) = spatial_query.cast_ray(ray_pos, ray_dir, remaining_time, true, &ray_qry)
         else {
             let final_point = ray_pos + ray_dir * remaining_time;
@@ -161,9 +161,9 @@ pub fn play_light_beam(
             playback.end_point = Some(final_point);
             break;
         };
-        // if q_mirrors.contains(hit.entity) {
-        //     extra_bounces_from_mirror += 1;
-        // }
+        if q_mirrors.contains(hit.entity) {
+            extra_bounces_from_mirror += 1;
+        }
 
         // if inside something???
         let mut ignore_entity = true;
@@ -210,7 +210,7 @@ pub fn simulate_light_sources(
     mut q_light_sources: Query<(&mut LightBeamSource, &mut PrevLightBeamPlayback)>,
     // q_black_ray: Query<(Entity, &BlackRayComponent)>,
     spatial_query: SpatialQuery,
-    // q_mirrors: Query<&Mirror>,
+    q_mirrors: Query<&Mirror>,
     // used to tell if a collision was against a white beam (a different sound is played)
     q_segments: Query<&LightSegment>,
     light_bounce_sfx: Res<LightBounceSfx>,
@@ -224,7 +224,7 @@ pub fn simulate_light_sources(
         .collect::<HashSet<LightSegment>>();
 
     for (mut source, mut prev_playback) in q_light_sources.iter_mut() {
-        let playback = play_light_beam(&spatial_query, &source);
+        let playback = play_light_beam(&spatial_query, &source, &q_mirrors);
         let mut pts: Vec<Vec2> = playback.iter_points(&source).collect();
 
         let mut i = 0;
@@ -396,7 +396,7 @@ pub fn simulate_light_sources(
                     if *t == transform {
                         continue;
                     }
-                    commands.entity(*e).insert(transform).id()
+                    commands.entity(*e).try_insert(transform).id()
                 }
             };
             segment_cache.insert(segment.clone(), (transform, entity));

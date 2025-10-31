@@ -4,6 +4,7 @@ use bevy::prelude::*;
 
 use crate::{
     game::{
+        defs::shard::CrystalShardMods,
         lyra::{beam::PlayerLightInventory, Lyra},
         LevelSystems,
     },
@@ -38,6 +39,7 @@ pub fn hint_restart_button(
     mut triggered: Local<HintRestartTimer>,
     lyra: Single<(Entity, &PlayerLightInventory), With<Lyra>>,
     time: Res<Time>,
+    shard_mods: Res<CrystalShardMods>,
     ldtk_level_param: LdtkLevelParam,
 ) {
     let (lyra, inventory) = lyra.into_inner();
@@ -48,7 +50,8 @@ pub fn hint_restart_button(
         .raw()
         .allowed_colors();
 
-    let has_color = allowed_colors.iter().any(|(_, allowed)| *allowed);
+    let has_color = allowed_colors.iter().any(|(_, allowed)| *allowed)
+        || shard_mods.0.iter().any(|(_, allowed)| *allowed);
     let can_shoot = inventory
         .sources
         .iter()

@@ -11,6 +11,7 @@ use crate::{
         cursor::CursorCoordsPlugin,
         defs::{one_way_platform::OneWayPlatformHooks, LevelPlugin},
         dialogue::DialoguePlugin,
+        level_completion::LevelCompletionPlugin,
         light::LightBeamPlugin,
         lighting::DeferredLightingPlugin,
         lyra::LyraPlugin,
@@ -34,6 +35,7 @@ mod switch;
 // mod input;
 // mod level;
 // mod light;
+pub mod level_completion;
 pub mod lighting;
 mod particle;
 // mod player;
@@ -52,6 +54,7 @@ impl Plugin for GamePlugin {
         app.add_plugins(CursorCoordsPlugin);
         app.add_plugins(LevelBgmPlugin);
         app.add_plugins(SpriteAnimationPlugin);
+        app.add_plugins(LevelCompletionPlugin);
         app.add_plugins(SwitchLevelPlugin);
         app.add_plugins(LevelSetupPlugin);
         app.add_plugins(LyraPlugin);

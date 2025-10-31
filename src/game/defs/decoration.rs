@@ -1,15 +1,15 @@
 use bevy::prelude::*;
 use bevy_ecs_ldtk::prelude::*;
 
-use crate::lighting::LineLight2d;
+use crate::game::lighting::LineLight2d;
 
 pub struct DecorationPlugin;
 
 impl Plugin for DecorationPlugin {
     fn build(&self, app: &mut App) {
-        app.register_ldtk_entity::<LdtkTreeBranchBundle>("Treebranch")
-            .register_ldtk_entity::<LdtkLanternBundle>("Lantern")
-            .register_ldtk_entity::<LdtkLantern2Bundle>("Lantern2");
+        app.register_ldtk_entity::<LdtkTreeBranchBundle>("Treebranch");
+        app.register_ldtk_entity::<LdtkLanternBundle>("Lantern");
+        app.register_ldtk_entity::<LdtkLantern2Bundle>("Lantern2");
     }
 }
 

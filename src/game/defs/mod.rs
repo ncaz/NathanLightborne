@@ -1,14 +1,17 @@
 use bevy::prelude::*;
 
 use crate::game::defs::{
-    crystal::CrystalPlugin, level_completion::LevelCompletionPlugin,
-    one_way_platform::OneWayPlatformPlugin, sensor::LightSensorPlugin, shard::CrystalShardPlugin,
-    spikes::SpikesPlugin, terrain::TerrainPlugin, tooltip_sign::TooltipSignPlugin,
+    cruciera::CrucieraPlugin, crystal::CrystalPlugin, decoration::DecorationPlugin,
+    mirror::MirrorPlugin, one_way_platform::OneWayPlatformPlugin, sensor::LightSensorPlugin,
+    shard::CrystalShardPlugin, spikes::SpikesPlugin, terrain::TerrainPlugin,
+    tooltip_sign::TooltipSignPlugin,
 };
 
+mod cruciera;
 pub mod crystal;
-pub mod level_completion;
+mod decoration;
 mod merge_tile;
+pub mod mirror;
 pub mod one_way_platform;
 pub mod sensor;
 pub mod shard;
@@ -27,7 +30,9 @@ impl Plugin for LevelPlugin {
         app.add_plugins(SpikesPlugin);
         app.add_plugins(TooltipSignPlugin);
         app.add_plugins(CrystalShardPlugin);
-        app.add_plugins(LevelCompletionPlugin);
+        app.add_plugins(CrucieraPlugin);
+        app.add_plugins(DecorationPlugin);
+        app.add_plugins(MirrorPlugin);
     }
 }
 
