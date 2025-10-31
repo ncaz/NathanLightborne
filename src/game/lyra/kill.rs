@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use avian2d::prelude::CollisionStart;
+use avian2d::prelude::{CollisionStart, Position};
 use bevy::{input::common_conditions::input_just_pressed, prelude::*};
 
 use crate::{
@@ -95,8 +95,9 @@ pub fn start_kill_animation(
         .observe(
             |_: On<Callback>,
              mut commands: Commands,
-             mut lyra: Single<&mut Transform, With<Lyra>>,
+             lyra: Single<(&mut Transform, &mut Position), With<Lyra>>,
              ldtk_level_param: LdtkLevelParam| {
+                let (mut transform, mut position) = lyra.into_inner();
                 let cb2 = commands
                     .spawn(())
                     .observe(
@@ -115,7 +116,8 @@ pub fn start_kill_animation(
                 commands.trigger(ResetLevels);
 
                 let lyra_transform = lyra_spawn_transform(&ldtk_level_param);
-                **lyra = Transform::from_translation(lyra_transform.extend(0.));
+                *transform = Transform::from_translation(lyra_transform.extend(0.));
+                *position = Position(lyra_transform);
                 info!("Moving lyra to {}", lyra_transform);
                 commands.trigger(SnapToLyra);
             },
@@ -130,5 +132,5 @@ pub fn start_kill_animation(
     });
 
     next_play_state.set(PlayState::Animating);
-    next_anim_state.set(AnimationState::InputLocked);
+    next_anim_state.set(AnimationState::Frozen);
 }
