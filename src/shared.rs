@@ -35,6 +35,3 @@ pub enum UiState {
 
 #[derive(Event)]
 pub struct ResetLevels;
-
-#[derive(Event)]
-pub struct ResetPlayer;

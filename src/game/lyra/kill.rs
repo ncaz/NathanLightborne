@@ -13,7 +13,7 @@ use crate::{
         lyra::{lyra_spawn_transform, Lyra},
     },
     ldtk::LdtkLevelParam,
-    shared::{AnimationState, PlayState, ResetLevels, ResetPlayer},
+    shared::{AnimationState, PlayState, ResetLevels},
 };
 
 pub struct LyraKillPlugin;
@@ -22,7 +22,6 @@ impl Plugin for LyraKillPlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<KillSfx>();
         app.load_resource::<KillSfx>();
-        app.add_observer(reset_player_pos_on_kill);
         app.add_observer(start_kill_animation);
         app.add_observer(play_death_sound_on_kill);
         app.add_systems(
@@ -66,17 +65,6 @@ pub fn play_death_sound_on_kill(
     ));
 }
 
-pub fn reset_player_pos_on_kill(
-    _: On<ResetPlayer>,
-    mut commands: Commands,
-    mut lyra: Single<&mut Transform, With<Lyra>>,
-    ldtk_level_param: LdtkLevelParam,
-) {
-    let lyra_transform = lyra_spawn_transform(&ldtk_level_param);
-    **lyra = Transform::from_translation(lyra_transform.extend(0.));
-    commands.trigger(SnapToLyra);
-}
-
 #[derive(Event)]
 pub struct KillPlayer;
 
@@ -101,27 +89,37 @@ pub fn start_kill_animation(
     if *play_state != PlayState::Playing {
         return;
     }
+    info!("Killing player!");
     let cb1 = commands
         .spawn(())
-        .observe(|_: On<Callback>, mut commands: Commands| {
-            let cb2 = commands
-                .spawn(())
-                .observe(
-                    |_: On<Callback>, mut next_play_state: ResMut<NextState<PlayState>>| {
-                        next_play_state.set(PlayState::Playing);
-                    },
-                )
-                .id();
+        .observe(
+            |_: On<Callback>,
+             mut commands: Commands,
+             mut lyra: Single<&mut Transform, With<Lyra>>,
+             ldtk_level_param: LdtkLevelParam| {
+                let cb2 = commands
+                    .spawn(())
+                    .observe(
+                        |_: On<Callback>, mut next_play_state: ResMut<NextState<PlayState>>| {
+                            next_play_state.set(PlayState::Playing);
+                        },
+                    )
+                    .id();
 
-            commands.trigger(CameraTransitionEvent {
-                duration: Duration::from_millis(400),
-                ease_fn: EaseFunction::SineInOut,
-                callback_entity: Some(cb2),
-                effect: CameraTransition::SlideFromBlack,
-            });
-            commands.trigger(ResetLevels);
-            commands.trigger(ResetPlayer);
-        })
+                commands.trigger(CameraTransitionEvent {
+                    duration: Duration::from_millis(400),
+                    ease_fn: EaseFunction::SineInOut,
+                    callback_entity: Some(cb2),
+                    effect: CameraTransition::SlideFromBlack,
+                });
+                commands.trigger(ResetLevels);
+
+                let lyra_transform = lyra_spawn_transform(&ldtk_level_param);
+                **lyra = Transform::from_translation(lyra_transform.extend(0.));
+                info!("Moving lyra to {}", lyra_transform);
+                commands.trigger(SnapToLyra);
+            },
+        )
         .id();
 
     commands.trigger(CameraTransitionEvent {
