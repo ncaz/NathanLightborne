@@ -1,20 +1,21 @@
 use bevy::prelude::*;
 use enum_map::{enum_map, EnumMap};
 
-use crate::{camera::HIGHRES_LAYER, level::LevelSystems, light::LightColor, player::PlayerMarker};
-
-use super::PlayerLightInventory;
+use crate::{
+    camera::HIGHRES_LAYER,
+    game::{
+        light::LightColor,
+        lyra::{beam::PlayerLightInventory, Lyra},
+    },
+};
 
 pub struct LightIndicatorPlugin;
 
 impl Plugin for LightIndicatorPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<LightIndicatorData>()
-            .add_systems(
-                PreUpdate,
-                add_light_indicator.in_set(LevelSystems::Processing),
-            )
-            .add_systems(FixedUpdate, update_light_indicator);
+        app.init_resource::<LightIndicatorData>();
+        app.add_observer(add_light_indicator);
+        app.add_systems(FixedUpdate, update_light_indicator);
     }
 }
 
@@ -52,45 +53,31 @@ impl FromWorld for LightIndicatorData {
 /// [`System`] that spawns the player's hurtbox [`Collider`] as a child entity.
 // mut commands: Commands - needed for safely creating/removing data in the ECS World
 pub fn add_light_indicator(
+    event: On<Add, Lyra>,
     mut commands: Commands,
-    q_player: Query<Entity, Added<PlayerMarker>>,
     indicator_data: Res<LightIndicatorData>,
 ) {
-    let Ok(player) = q_player.get_single() else {
-        return;
-    };
-
     let light_indicator = commands
-        .spawn((
-            indicator_data.mesh.clone(),
-            indicator_data.material_map[LightColor::Green].clone(),
-            Visibility::Visible,
-            Transform::from_xyz(-10.0, 10.0, 0.0),
-            LightIndicatorMarker,
-            HIGHRES_LAYER,
-        ))
+        .spawn(indicator_data.mesh.clone())
+        .insert(indicator_data.material_map[LightColor::Green].clone())
+        .insert(Visibility::Visible)
+        .insert(Transform::from_xyz(-10.0, 10.0, 1.0))
+        .insert(LightIndicatorMarker)
+        .insert(HIGHRES_LAYER)
         .id();
 
-    commands.entity(player).add_child(light_indicator);
+    commands.entity(event.entity).add_child(light_indicator);
 }
 
 pub fn update_light_indicator(
-    q_inventory: Query<&PlayerLightInventory>,
-    q_light_data: Query<Entity, With<LightIndicatorMarker>>,
+    inventory: Single<&PlayerLightInventory>,
+    indicator: Single<Entity, With<LightIndicatorMarker>>,
     mut commands: Commands,
     light_data: Res<LightIndicatorData>,
 ) {
-    let Ok(indicator) = q_light_data.get_single() else {
-        return;
-    };
-
-    let Ok(inventory) = q_inventory.get_single() else {
-        return;
-    };
-
     match inventory.current_color {
-        None => commands.entity(indicator).insert(Visibility::Hidden),
-        Some(_) => commands.entity(indicator).insert(Visibility::Visible),
+        None => commands.entity(*indicator).insert(Visibility::Hidden),
+        Some(_) => commands.entity(*indicator).insert(Visibility::Visible),
     };
 
     if let Some(color) = inventory.current_color {
@@ -99,6 +86,6 @@ pub fn update_light_indicator(
             true => light_data.material_map[color].clone(),
         };
 
-        commands.entity(indicator).insert(material);
+        commands.entity(*indicator).insert(material);
     }
 }

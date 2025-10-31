@@ -2,7 +2,7 @@ use crate::{
     asset::LoadResource,
     camera::{MainCamera, HIGHRES_LAYER},
     config::Config,
-    shared::GameState,
+    shared::{GameState, ResetLevels},
 };
 use avian2d::prelude::RigidBody;
 use bevy::prelude::*;
@@ -88,7 +88,7 @@ pub fn spawn_background(
 
 pub fn despawn_level(mut commands: Commands, level_marker: Single<Entity, With<LevelMarker>>) {
     info!("Despawning Levels!");
-
+    commands.trigger(ResetLevels);
     commands.entity(*level_marker).despawn();
 }
 

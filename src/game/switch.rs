@@ -19,7 +19,7 @@ pub struct SwitchLevelPlugin;
 
 impl Plugin for SwitchLevelPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(FixedUpdate, switch_level.in_set(LevelSystems::Simulation));
+        app.add_systems(Update, switch_level.in_set(LevelSystems::Simulation));
     }
 }
 

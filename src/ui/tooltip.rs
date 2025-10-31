@@ -15,24 +15,13 @@ impl Plugin for TooltipPlugin {
 #[derive(Component)]
 pub struct Tooltip;
 
-#[derive(Component)]
-pub enum TooltipDespawnSetting {
-    LevelSwitch,
-    // None,
-}
-
 pub fn handle_tooltip_despawns(
     _: On<ResetLevels>,
     mut commands: Commands,
-    mut q_tooltips: Query<(Entity, &mut TooltipDespawnSetting)>,
+    q_tooltips: Query<Entity, With<Tooltip>>,
 ) {
-    for (tooltip, mut tooltip_despawn) in q_tooltips.iter_mut() {
-        let tooltip_despawn = &mut *tooltip_despawn;
-        match tooltip_despawn {
-            TooltipDespawnSetting::LevelSwitch => {
-                commands.entity(tooltip).despawn();
-            } // TooltipDespawnSetting::None => (),
-        }
+    for tooltip in q_tooltips.iter() {
+        commands.entity(tooltip).despawn();
     }
 }
 
@@ -48,7 +37,6 @@ impl TooltipSpawner<'_, '_> {
         tooltip: impl Into<String>,
         on_entity: Entity,
         offset: Vec3,
-        despawn: TooltipDespawnSetting,
     ) -> Entity {
         let container = self
             .commands
@@ -60,8 +48,14 @@ impl TooltipSpawner<'_, '_> {
                 align_items: AlignItems::Center,
                 position_type: PositionType::Absolute,
                 border: UiRect::all(Val::Px(2.0)),
+
                 ..default()
             })
+            .insert(UiTransform {
+                translation: Val2::percent(-50., 0.),
+                ..default()
+            })
+            .insert(GlobalZIndex(-1))
             .insert(BackgroundColor(Color::srgba(0., 0., 0., 0.5)))
             .insert(BorderColor::all(Color::srgba(1., 1., 1., 0.7)))
             .insert(Tooltip)
@@ -69,7 +63,6 @@ impl TooltipSpawner<'_, '_> {
                 target: on_entity,
                 offset,
             })
-            .insert(despawn)
             .id();
 
         self.commands
@@ -77,7 +70,8 @@ impl TooltipSpawner<'_, '_> {
             .insert(self.ui_font.text_font())
             .insert(ChildOf(container))
             .insert(TextColor(Color::srgba(1., 1., 1., 0.7)))
-            .insert(TextLayout::new_with_justify(Justify::Center))
-            .id()
+            .insert(TextLayout::new_with_justify(Justify::Center));
+
+        container
     }
 }

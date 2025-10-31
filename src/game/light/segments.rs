@@ -111,19 +111,30 @@ pub fn play_light_beam(
     let mut ray_pos = source.start_pos;
     let mut ray_dir = source.start_dir;
     let collision_groups = match source.color {
-        LightColor::White => {
-            CollisionLayers::new(Layers::WhiteRay, [Layers::Terrain, Layers::LightSensor])
-        }
+        LightColor::White => CollisionLayers::new(
+            Layers::WhiteRay,
+            [Layers::Terrain, Layers::LightSensor, Layers::Spike],
+        ),
         // LightColor::Black => {
         //     CollisionLayers::new(Layers::BlackRay, Layers::Terrain, Layers::LightSensor)
         // }
         LightColor::Blue => CollisionLayers::new(
             Layers::BlueRay,
-            [Layers::Terrain, Layers::LightSensor, Layers::WhiteRay],
+            [
+                Layers::Terrain,
+                Layers::LightSensor,
+                Layers::WhiteRay,
+                Layers::Spike,
+            ],
         ),
         _ => CollisionLayers::new(
             Layers::LightRay,
-            [Layers::Terrain, Layers::LightSensor, Layers::WhiteRay],
+            [
+                Layers::Terrain,
+                Layers::LightSensor,
+                Layers::WhiteRay,
+                Layers::Spike,
+            ],
         ),
     };
 
@@ -341,7 +352,6 @@ pub fn simulate_light_sources(
 
             let entity = match segment_cache.get(&segment) {
                 None => {
-                    info!("Spawned segment!");
                     let seg = commands
                         .spawn(transform)
                         .insert(LightSegmentBundle {

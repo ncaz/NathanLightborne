@@ -52,7 +52,7 @@ fn spawn_start_menu(mut commands: Commands, ui_font: Res<UiFont>, assets: Res<St
             align_items: AlignItems::Center,
             column_gap: Val::Px(32.0),
             row_gap: Val::Px(32.0),
-            padding: UiRect::all(Val::Px(96.)).with_top(Val::Percent(30.)),
+            padding: UiRect::all(Val::Px(96.)).with_top(Val::Vh(50.)),
             ..default()
         })
         .insert(ImageNode::from(assets.background.clone()).with_mode(NodeImageMode::Stretch))

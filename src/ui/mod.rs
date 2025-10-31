@@ -1,4 +1,4 @@
-use bevy::{prelude::*, ui::ui_focus_system};
+use bevy::{audio::Volume, prelude::*, ui::ui_focus_system};
 
 use follow::TargetFollowingPlugin;
 // use level_select::LevelSelectPlugin;
@@ -7,15 +7,16 @@ use tooltip::TooltipPlugin;
 
 use crate::{
     asset::LoadResource,
-    shared::GameState,
+    shared::{GameState, PlayState},
     ui::{
-        level_select::LevelSelectPlugin, loading::LoadingUiPlugin, settings::SettingsPlugin,
-        speedrun::SpeedrunTimerPlugin, start_menu::StartMenuPlugin,
+        level_select::LevelSelectPlugin, light::LightUiPlugin, loading::LoadingUiPlugin,
+        settings::SettingsPlugin, speedrun::SpeedrunTimerPlugin, start_menu::StartMenuPlugin,
     },
 };
 
 pub mod follow;
 pub mod level_select;
+mod light;
 mod loading;
 mod pause;
 pub mod settings;
@@ -33,6 +34,7 @@ impl Plugin for UiPlugin {
         app.load_resource::<UiSfx>();
         app.add_plugins(TargetFollowingPlugin);
         app.add_plugins(TooltipPlugin);
+        app.add_plugins(LightUiPlugin);
         app.add_plugins(PausePlugin);
         app.add_plugins(LoadingUiPlugin);
         app.add_plugins(SpeedrunTimerPlugin);
@@ -43,7 +45,7 @@ impl Plugin for UiPlugin {
             PreUpdate,
             button_sfx
                 .after(ui_focus_system)
-                .run_if(in_state(GameState::Ui)),
+                .run_if(in_state(GameState::Ui).or(in_state(PlayState::Paused))),
         );
         app.add_systems(PreUpdate, trigger_interaction_events.after(button_sfx));
     }
@@ -108,13 +110,13 @@ pub fn button_sfx(
             Interaction::Pressed => {
                 commands.spawn((
                     AudioPlayer::new(ui_sfx.on_click.clone()),
-                    PlaybackSettings::DESPAWN,
+                    PlaybackSettings::DESPAWN.with_volume(Volume::Linear(0.5)),
                 ));
             }
             Interaction::Hovered => {
                 commands.spawn((
                     AudioPlayer::new(ui_sfx.on_hover.clone()),
-                    PlaybackSettings::DESPAWN,
+                    PlaybackSettings::DESPAWN.with_volume(Volume::Linear(0.5)),
                 ));
             }
             _ => (),
@@ -146,4 +148,5 @@ pub struct UiFontSize;
 impl UiFontSize {
     pub const HEADER: f32 = 64.;
     pub const BUTTON: f32 = 48.;
+    pub const TEXT: f32 = 32.;
 }

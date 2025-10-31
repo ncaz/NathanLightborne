@@ -8,7 +8,12 @@ use crate::{
     game::{
         animation::AnimationConfig,
         camera_op::SnapToLyra,
-        defs::one_way_platform::PassThroughOneWayPlatform,
+        defs::{
+            level_completion::handle_start_end_markers,
+            one_way_platform::PassThroughOneWayPlatform,
+            shard::on_player_intersect_shard,
+            tooltip_sign::{display_tooltip_signs, hide_tooltip_signs},
+        },
         lighting::LineLight2d,
         lyra::{
             animation::{LyraAnimationPlugin, PlayerAnimationType, ANIMATION_FRAMES},
@@ -16,7 +21,8 @@ use crate::{
             controller::{
                 CachedLinearVelocity, CharacterController, CharacterControllerPlugin, MovementInfo,
             },
-            kill::{KillPlayer, LyraKillPlugin},
+            indicator::LightIndicatorPlugin,
+            kill::{kill_player_on_danger, LyraKillPlugin},
             restart_hint::HintRestartPlugin,
             strand::LyraStrandPlugin,
         },
@@ -29,6 +35,7 @@ use crate::{
 mod animation;
 pub mod beam;
 pub mod controller;
+mod indicator;
 mod kill;
 mod restart_hint;
 mod strand;
@@ -47,6 +54,7 @@ impl Plugin for LyraPlugin {
         app.add_plugins(LyraKillPlugin);
         app.add_plugins(BeamControllerPlugin);
         app.add_plugins(HintRestartPlugin);
+        app.add_plugins(LightIndicatorPlugin);
         app.add_systems(OnEnter(GameState::InGame), spawn_lyra);
         app.add_systems(OnEnter(GameState::InGame), spawn_lyra_cam.after(spawn_lyra));
         app.add_systems(OnExit(GameState::InGame), despawn_lyra);
@@ -124,7 +132,7 @@ pub fn spawn_lyra(
         .insert(MovementInfo::default())
         .insert(
             ShapeCaster::new(
-                Collider::rectangle(11.0, 0.5),
+                Collider::rectangle(8.0, 0.5),
                 Vec2::new(0., -9.75),
                 0.0,
                 Dir2::NEG_Y,
@@ -143,7 +151,7 @@ pub fn spawn_lyra(
         .spawn(Collider::compound(vec![(
             Vec2::new(0.0, -2.0),
             Rotation::default(),
-            Collider::rectangle(8.0, 10.0),
+            Collider::rectangle(6.0, 8.0),
         )]))
         .insert(CollisionEventsEnabled)
         .insert(Sensor)
@@ -153,18 +161,18 @@ pub fn spawn_lyra(
         .insert(Transform::default())
         .insert(CollisionLayers::new(
             Layers::PlayerHurtbox,
-            [Layers::DangerBox, Layers::CrystalShard],
+            [Layers::DangerBox, Layers::SensorBox],
         ))
         .insert(LineLight2d::point(
             Vec4::new(1.0, 1.0, 1.0, 1.0),
             40.0,
             0.01,
         ))
-        .observe(|_: On<CollisionStart>, mut commands: Commands| {
-            // NOTE: if the collider shouldn't kill lyra if intersecting, then dont put it in
-            // layers
-            commands.trigger(KillPlayer);
-        });
+        .observe(hide_tooltip_signs)
+        .observe(display_tooltip_signs)
+        .observe(handle_start_end_markers)
+        .observe(on_player_intersect_shard)
+        .observe(kill_player_on_danger);
 
     commands.trigger(SnapToLyra);
 }

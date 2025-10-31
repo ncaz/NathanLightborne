@@ -293,6 +293,12 @@ pub fn handle_move_camera(
             ease_fn,
             callback_entity,
         } => {
+            info!(
+                "Received animated camera move event from {} to {}",
+                camera.translation.truncate(),
+                event.to
+            );
+
             let anim = CameraAnimationInfo {
                 progress: Timer::new(duration, TimerMode::Once),
                 start: camera.translation,
@@ -350,6 +356,8 @@ pub fn handle_zoom_camera(
             ease_fn,
             callback_entity,
         } => {
+            info!("Received animated camera zoom event to {}", event.scale);
+
             let anim = CameraAnimationInfo {
                 progress: Timer::new(duration, TimerMode::Once),
                 start: projection.scale,

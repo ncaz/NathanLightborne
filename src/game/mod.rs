@@ -6,9 +6,11 @@ use crate::{
     camera::HIGHRES_LAYER,
     game::{
         animation::SpriteAnimationPlugin,
+        bgm::LevelBgmPlugin,
         camera_op::CameraOpPlugin,
         cursor::CursorCoordsPlugin,
         defs::{one_way_platform::OneWayPlatformHooks, LevelPlugin},
+        dialogue::DialoguePlugin,
         light::LightBeamPlugin,
         lighting::DeferredLightingPlugin,
         lyra::LyraPlugin,
@@ -20,9 +22,11 @@ use crate::{
 };
 
 mod animation;
+mod bgm;
 mod camera_op;
 mod cursor;
-mod defs;
+pub mod defs;
+mod dialogue;
 pub mod light;
 pub mod lyra;
 pub mod setup;
@@ -44,7 +48,9 @@ impl Plugin for GamePlugin {
                 .with_collision_hooks::<OneWayPlatformHooks>(),
         );
         // app.add_plugins(PhysicsDebugPlugin);
+        // app.add_plugins(PhysicsDiagnosticsPlugin);
         app.add_plugins(CursorCoordsPlugin);
+        app.add_plugins(LevelBgmPlugin);
         app.add_plugins(SpriteAnimationPlugin);
         app.add_plugins(SwitchLevelPlugin);
         app.add_plugins(LevelSetupPlugin);
@@ -54,6 +60,7 @@ impl Plugin for GamePlugin {
         app.add_plugins(ParticlePlugin);
         app.add_plugins(LightBeamPlugin);
         app.add_plugins(DeferredLightingPlugin);
+        app.add_plugins(DialoguePlugin);
         app.configure_sets(
             PreUpdate,
             LevelSystems::Processing
@@ -99,9 +106,10 @@ pub enum Layers {
     WhiteRay,
     BlueRay,
     DangerBox,
+    Spike,
     Terrain,
     LightSensor,
-    CrystalShard,
+    SensorBox,
     // BlackRay,
 }
 

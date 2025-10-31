@@ -99,7 +99,10 @@ impl MergedTile for Crystal {
                 Layers::all_bits() & !Layers::BlueRay.to_bits(),
             ));
         } else {
-            commands.insert(CollisionLayers::new(Layers::Terrain, Layers::all_bits()));
+            commands.insert(CollisionLayers::new(
+                [Layers::Terrain, Layers::DangerBox],
+                Layers::all_bits(),
+            ));
         }
 
         commands

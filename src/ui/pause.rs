@@ -1,152 +1,119 @@
-use bevy::{input::common_conditions::input_just_pressed, prelude::*, ui::widget::NodeImageMode};
+use bevy::{input::common_conditions::input_just_pressed, prelude::*};
 
-use crate::shared::{GameState, PlayState};
+use crate::{
+    asset::LoadResource,
+    shared::{GameState, PlayState, UiState},
+    ui::{UiButton, UiClick, UiFont, UiFontSize},
+};
 
 pub struct PausePlugin;
 
 impl Plugin for PausePlugin {
     fn build(&self, app: &mut App) {
-        app
-            // .add_systems(
-            // Update,
-            // (
-            // spawn_pause.run_if(in_state(GameState::Paused)),
-            // despawn_pause.run_if(not(in_state(GameState::Paused))),
-            // spawn_cover.run_if(in_state(GameState::Ui)),
-            // despawn_cover.run_if(not(in_state(GameState::Ui))),
-            // resume_button,
-            // ),
-            // )
-            .add_systems(
-                Update,
-                toggle_pause
-                    .run_if(in_state(GameState::InGame))
-                    .run_if(input_just_pressed(KeyCode::Escape)),
-            );
+        app.register_type::<PauseAssets>();
+        app.load_resource::<PauseAssets>();
+        app.add_systems(OnEnter(PlayState::Paused), spawn_pause);
+        app.add_systems(OnExit(PlayState::Paused), despawn_pause);
+        app.add_systems(
+            Update,
+            toggle_pause
+                .run_if(in_state(GameState::InGame))
+                .run_if(input_just_pressed(KeyCode::Escape)),
+        );
     }
 }
 
-// #[derive(Component)]
-// pub struct PauseMarker;
-//
-// #[derive(Component)]
-// pub struct PauseMenuResume;
-//
-// fn spawn_pause(
-//     mut commands: Commands,
-//     asset_server: Res<AssetServer>,
-//     q_pause: Query<Entity, With<PauseMarker>>,
-//     mut ev_change_bgm: EventWriter<ChangeBgmEvent>,
-// ) {
-//     if q_pause.get_single().is_ok() {
-//         return;
-//     }
-//
-//     let font = TextFont {
-//         font: asset_server.load("fonts/Outfit-Medium.ttf"),
-//         ..default()
-//     };
-//
-//     ev_change_bgm.send(ChangeBgmEvent(BgmTrack::None));
-//
-//     commands
-//         .spawn((
-//             Node {
-//                 width: Val::Percent(100.0),
-//                 height: Val::Percent(100.0),
-//                 justify_content: JustifyContent::Center,
-//                 align_items: AlignItems::Center,
-//                 ..default()
-//             },
-//             PauseMarker,
-//         ))
-//         .with_children(|container| {
-//             container
-//                 .spawn((
-//                     Node {
-//                         width: Val::Percent(80.),
-//                         height: Val::Percent(80.),
-//                         justify_content: JustifyContent::Center,
-//                         padding: UiRect::all(Val::Percent(20.)),
-//                         display: Display::Flex,
-//                         flex_direction: FlexDirection::Column,
-//                         align_items: AlignItems::Center,
-//                         column_gap: Val::Px(32.0),
-//                         row_gap: Val::Px(32.0),
-//                         ..default()
-//                     },
-//                     ImageNode::from(asset_server.load("ui/pause_menu.png"))
-//                         .with_mode(NodeImageMode::Stretch),
-//                 ))
-//                 .with_children(|parent| {
-//                     parent.spawn((
-//                         Text::new("Paused"),
-//                         font.clone().with_font_size(48.),
-//                         Node {
-//                             margin: UiRect::all(Val::Px(32.)),
-//                             ..default()
-//                         },
-//                     ));
-//                     parent.spawn((
-//                         Text::new("Resume"),
-//                         Button,
-//                         PauseMenuResume,
-//                         font.clone().with_font_size(36.),
-//                     ));
-//                     parent.spawn((
-//                         Text::new("Level Select"),
-//                         Button,
-//                         StartMenuButtonMarker::Play,
-//                         font.clone().with_font_size(36.),
-//                     ));
-//                     parent.spawn((
-//                         Text::new("Settings"),
-//                         Button,
-//                         StartMenuButtonMarker::Settings,
-//                         font.clone().with_font_size(36.),
-//                     ));
-//                     parent.spawn((
-//                         Text::new("Main Menu"),
-//                         Button,
-//                         SettingsButton::Back,
-//                         font.clone().with_font_size(36.),
-//                     ));
-//                 });
-//         });
-// }
-//
-// fn despawn_pause(mut commands: Commands, q_pause: Query<Entity, With<PauseMarker>>) {
-//     let Ok(pause_entity) = q_pause.get_single() else {
-//         return;
-//     };
-//     commands.entity(pause_entity).despawn_recursive();
-// }
-//
-// fn resume_button(
-//     mut commands: Commands,
-//     q_button: Query<&Interaction, (With<PauseMenuResume>, Changed<Interaction>)>,
-//     mut next_game_state: ResMut<NextState<GameState>>,
-//     asset_server: Res<AssetServer>,
-// ) {
-//     for interaction in q_button.iter() {
-//         match *interaction {
-//             Interaction::Pressed => {
-//                 commands.spawn((
-//                     AudioPlayer::new(asset_server.load("sfx/click.wav")),
-//                     PlaybackSettings::DESPAWN,
-//                 ));
-//                 next_game_state.set(GameState::Playing);
-//             }
-//             Interaction::Hovered => {
-//                 commands.spawn((
-//                     AudioPlayer::new(asset_server.load("sfx/hover.wav")),
-//                     PlaybackSettings::DESPAWN,
-//                 ));
-//             }
-//             _ => {}
-//         }
-//     }
-// }
+#[derive(Resource, Asset, Reflect, Clone)]
+#[reflect(Resource)]
+pub struct PauseAssets {
+    #[dependency]
+    bg: Handle<Image>,
+}
+
+impl FromWorld for PauseAssets {
+    fn from_world(world: &mut World) -> Self {
+        let asset_server = world.resource::<AssetServer>();
+
+        Self {
+            bg: asset_server.load("ui/pause_menu.png"),
+        }
+    }
+}
+
+#[derive(Component)]
+pub struct PauseMarker;
+
+fn spawn_pause(mut commands: Commands, ui_font: Res<UiFont>, pause_assets: Res<PauseAssets>) {
+    let container = commands
+        .spawn(PauseMarker)
+        .insert(Node {
+            width: Val::Vw(60.),
+            height: Val::Vh(60.),
+            margin: UiRect::new(Val::Vw(20.), Val::Vw(20.), Val::Vh(20.), Val::Vh(20.)),
+            justify_content: JustifyContent::SpaceBetween,
+            display: Display::Flex,
+            flex_direction: FlexDirection::Column,
+            align_items: AlignItems::Center,
+            padding: UiRect::all(Val::Px(96.0)),
+            column_gap: Val::Px(32.),
+            row_gap: Val::Px(32.),
+            ..default()
+        })
+        .insert(ImageNode::from(pause_assets.bg.clone()).with_mode(NodeImageMode::Stretch))
+        // .insert(BackgroundColor(Color::BLACK.with_alpha(0.2)))
+        .id();
+
+    commands
+        .spawn(Text::new("Paused"))
+        .insert(ui_font.text_font().with_font_size(UiFontSize::HEADER))
+        .insert(ChildOf(container));
+
+    let center_container = commands
+        .spawn(Node {
+            width: Val::Percent(100.),
+            height: Val::Percent(100.),
+            display: Display::Flex,
+            flex_direction: FlexDirection::Column,
+            justify_content: JustifyContent::Center,
+            align_items: AlignItems::Center,
+            column_gap: Val::Px(32.),
+            row_gap: Val::Px(32.),
+            ..default()
+        })
+        .insert(ChildOf(container))
+        .id();
+
+    commands
+        .spawn(Text::new("Main Menu"))
+        .insert(Button)
+        .insert(UiButton)
+        .insert(ChildOf(center_container))
+        .insert(ui_font.text_font().with_font_size(UiFontSize::BUTTON))
+        .observe(
+            |_: On<UiClick>,
+             mut next_game_state: ResMut<NextState<GameState>>,
+             mut next_ui_state: ResMut<NextState<UiState>>| {
+                next_game_state.set(GameState::Ui);
+                next_ui_state.set(UiState::StartMenu);
+            },
+        );
+
+    commands
+        .spawn(Text::new("Resume"))
+        .insert(Button)
+        .insert(UiButton)
+        .insert(ui_font.text_font().with_font_size(UiFontSize::BUTTON))
+        .insert(ChildOf(center_container))
+        .observe(
+            |_: On<UiClick>, mut next_play_state: ResMut<NextState<PlayState>>| {
+                next_play_state.set(PlayState::Playing);
+            },
+        );
+}
+
+fn despawn_pause(mut commands: Commands, pause: Single<Entity, With<PauseMarker>>) {
+    commands.entity(*pause).despawn();
+}
 
 fn toggle_pause(state: Res<State<PlayState>>, mut next_state: ResMut<NextState<PlayState>>) {
     match state.get() {

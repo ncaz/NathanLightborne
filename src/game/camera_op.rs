@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::{
     camera::{CameraControlType, CameraMoveEvent, MainCamera, CAMERA_HEIGHT, CAMERA_WIDTH},
-    game::{lyra::Lyra, LevelSystems},
+    game::{lyra::Lyra, switch::switch_level, LevelSystems},
     ldtk::{LdtkLevelParam, LevelExt},
 };
 
@@ -12,7 +12,10 @@ pub struct CameraOpPlugin;
 
 impl Plugin for CameraOpPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(FixedUpdate, follow_lyra.in_set(LevelSystems::Simulation));
+        app.add_systems(
+            Update,
+            follow_lyra.before(switch_level).in_set(LevelSystems::Input),
+        );
         app.add_observer(snap_to_lyra);
     }
 }
@@ -43,6 +46,7 @@ pub fn follow_lyra(
     lyra: Single<&Transform, With<Lyra>>,
     camera: Single<&Transform, (With<MainCamera>, Without<Lyra>)>,
     ldtk_level_param: LdtkLevelParam,
+    time: Res<Time>,
 ) {
     let cur_level = ldtk_level_param
         .cur_level()
@@ -51,7 +55,10 @@ pub fn follow_lyra(
 
     let camera_pos = camera_position_from_level(cur_level.level_box(), lyra.translation.xy());
     commands.trigger(CameraMoveEvent {
-        to: camera.translation.xy().lerp(camera_pos, 0.2),
+        to: camera
+            .translation
+            .xy()
+            .lerp(camera_pos, 0.2 * time.delta_secs() * 64.),
         variant: CameraControlType::Instant,
     });
 }

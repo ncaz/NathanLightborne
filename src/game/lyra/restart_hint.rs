@@ -8,7 +8,7 @@ use crate::{
         LevelSystems,
     },
     ldtk::{LdtkLevelParam, LevelExt},
-    ui::tooltip::{TooltipDespawnSetting, TooltipSpawner},
+    ui::tooltip::TooltipSpawner,
 };
 
 const PLAYER_STUCK_TOOLTIP_DELAY_SECS: u64 = 5;
@@ -63,7 +63,6 @@ pub fn hint_restart_button(
                 "Stuck? Press R to restart",
                 lyra,
                 Vec3::new(0., 20., 0.),
-                TooltipDespawnSetting::LevelSwitch,
             );
         }
     } else {

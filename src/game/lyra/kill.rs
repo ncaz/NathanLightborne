@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use avian2d::prelude::CollisionStart;
 use bevy::{input::common_conditions::input_just_pressed, prelude::*};
 
 use crate::{
@@ -8,6 +9,7 @@ use crate::{
     camera::{CameraTransition, CameraTransitionEvent},
     game::{
         camera_op::SnapToLyra,
+        defs::DangerBox,
         lyra::{lyra_spawn_transform, Lyra},
     },
     ldtk::LdtkLevelParam,
@@ -78,12 +80,27 @@ pub fn reset_player_pos_on_kill(
 #[derive(Event)]
 pub struct KillPlayer;
 
+pub fn kill_player_on_danger(
+    event: On<CollisionStart>,
+    mut commands: Commands,
+    q_danger_box: Query<&DangerBox>,
+) {
+    if !q_danger_box.get(event.collider2).is_ok() {
+        return;
+    }
+    commands.trigger(KillPlayer);
+}
+
 pub fn start_kill_animation(
     _: On<KillPlayer>,
     mut commands: Commands,
-    mut next_game_state: ResMut<NextState<PlayState>>,
+    play_state: ResMut<State<PlayState>>,
+    mut next_play_state: ResMut<NextState<PlayState>>,
     mut next_anim_state: ResMut<NextState<AnimationState>>,
 ) {
+    if *play_state != PlayState::Playing {
+        return;
+    }
     let cb1 = commands
         .spawn(())
         .observe(|_: On<Callback>, mut commands: Commands| {
@@ -114,6 +131,6 @@ pub fn start_kill_animation(
         effect: CameraTransition::SlideToBlack,
     });
 
-    next_game_state.set(PlayState::Animating);
+    next_play_state.set(PlayState::Animating);
     next_anim_state.set(AnimationState::InputLocked);
 }

@@ -39,10 +39,12 @@ impl Plugin for CharacterControllerPlugin {
         app.add_systems(FixedUpdate, movement.in_set(LevelSystems::Simulation));
         app.add_systems(
             PhysicsSchedule,
-            kinematic_controller_collisions.in_set(NarrowPhaseSystems::Last),
+            kinematic_controller_collisions
+                .in_set(NarrowPhaseSystems::Last)
+                .run_if(in_state(PlayState::Playing)),
         );
-        app.add_systems(OnEnter(PlayState::Animating), cache_linear_vel);
-        app.add_systems(OnExit(PlayState::Animating), res_linear_vel);
+        app.add_systems(OnExit(PlayState::Playing), cache_linear_vel);
+        app.add_systems(OnEnter(PlayState::Playing), res_linear_vel);
     }
 }
 

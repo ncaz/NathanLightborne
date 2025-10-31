@@ -13,6 +13,7 @@ pub trait LevelExt {
     const START_FLAG_IDENT: &'static str;
     fn start_flag_pos(&self) -> Option<Vec2>;
     fn level_box(&self) -> Rect;
+    fn level_id(&self) -> &String;
     fn allowed_colors(&self) -> EnumMap<LightColor, bool>;
 }
 
@@ -48,6 +49,16 @@ impl LevelExt for Level {
         enum_map! {
             val => allowed_colors.contains(&val),
         }
+    }
+    fn level_id(&self) -> &String {
+        let level_id = self
+            .get_string_field("LevelId")
+            .expect("Levels should always have a level id!");
+
+        if level_id.is_empty() {
+            panic!("Level id for a level should not be empty!");
+        }
+        level_id
     }
 
     fn level_box(&self) -> Rect {

@@ -1,18 +1,12 @@
-use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
-// use animation::SpriteAnimationPlugin;
+#[cfg(feature = "dev_mode")]
+use bevy::dev_tools::fps_overlay::{FpsOverlayConfig, FpsOverlayPlugin, FrameTimeGraphConfig};
+
 use bevy::prelude::*;
 use bevy::window::PresentMode;
 use bevy::{asset::AssetMetaCheck, diagnostic::LogDiagnosticsPlugin};
-// use bevy_rapier2d::prelude::*;
 
 use camera::{CameraPlugin, HIGHRES_LAYER};
 use config::ConfigPlugin;
-// use input::{init_cursor_world_coords, update_cursor_world_coords};
-// use level::LevelManagementPlugin;
-// use light::LightManagementPlugin;
-// use lighting::DeferredLightingPlugin;
-// use particle::ParticlePlugin;
-// use player::PlayerManagementPlugin;
 use shared::{AnimationState, GameState, UiState};
 use sound::SoundPlugin;
 use ui::UiPlugin;
@@ -21,16 +15,12 @@ use crate::asset::{AssetLoadPlugin, ResourceLoaded};
 use crate::game::GamePlugin;
 use crate::shared::PlayState;
 
-// mod animation;
 mod asset;
 mod callback;
 mod camera;
 mod config;
 mod game;
 mod ldtk;
-// mod light;
-// mod lighting;
-// mod particle;
 mod shared;
 mod sound;
 mod ui;
@@ -46,7 +36,7 @@ fn main() {
                 primary_window: Some(Window {
                     title: "Lightborne".into(),
                     name: Some("lightborne".into()),
-                    present_mode: PresentMode::AutoNoVsync,
+                    present_mode: PresentMode::Immediate,
                     canvas: Some("#bevy-container".into()),
                     fit_canvas_to_parent: true,
                     prevent_default_event_handling: false,
@@ -71,22 +61,29 @@ fn main() {
     app.add_plugins(AssetLoadPlugin);
     app.add_plugins(ConfigPlugin);
     app.add_plugins(LogDiagnosticsPlugin::default());
-    app.add_plugins(FrameTimeDiagnosticsPlugin::default());
-    // app.add_plugins(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(8.0).in_fixed_schedule());
-    // app.add_plugins(SpriteAnimationPlugin);
-    // app.add_plugins(PlayerManagementPlugin);
-    // app.add_plugins(LevelManagementPlugin);
-    // app.add_plugins(LightManagementPlugin);
     app.add_plugins(SoundPlugin);
-    // app.add_plugins(ParticlePlugin);
     app.add_plugins(CameraPlugin);
     app.add_plugins(UiPlugin);
     app.add_plugins(GamePlugin);
     app.insert_state(GameState::Loading);
+    app.insert_resource(UiScale(1.5));
     app.add_sub_state::<UiState>();
     app.add_sub_state::<PlayState>();
     app.add_sub_state::<AnimationState>();
-    // app.add_plugins(DeferredLightingPlugin);
+
+    #[cfg(feature = "dev_mode")]
+    app.add_plugins(FpsOverlayPlugin {
+        config: FpsOverlayConfig {
+            enabled: true, // Enable the main FPS overlay
+            frame_time_graph_config: FrameTimeGraphConfig {
+                enabled: true,     // Enable the frame time graph
+                min_fps: 120.0,    // Minimum acceptable FPS (shows red below this)
+                target_fps: 360.0, // Target FPS (shows green above this)
+                ..default()
+            },
+            ..default()
+        },
+    });
 
     app.add_observer(
         |event: On<ResourceLoaded>,

@@ -51,8 +51,10 @@ pub fn spawn_loading_ui(mut commands: Commands, asset_server: Res<AssetServer>) 
         .spawn(Node {
             width: Val::Percent(100.),
             height: Val::Px(12.),
+            border: UiRect::all(Val::Px(2.0)),
             ..default()
         })
+        .insert(BorderColor::all(Color::WHITE))
         .insert(ChildOf(container))
         .id();
 

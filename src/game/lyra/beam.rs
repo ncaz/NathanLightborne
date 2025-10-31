@@ -6,9 +6,11 @@ use enum_map::{enum_map, EnumMap};
 use itertools::Itertools;
 
 use crate::{
+    asset::LoadResource,
     camera::HIGHRES_LAYER,
     game::{
         cursor::CursorWorldCoords,
+        defs::shard::CrystalShardMods,
         light::{
             segments::{play_light_beam, PrevLightBeamPlayback},
             LightBeamSource, LightColor,
@@ -27,8 +29,8 @@ pub struct BeamControllerPlugin;
 
 impl Plugin for BeamControllerPlugin {
     fn build(&self, app: &mut App) {
-        // app.add_plugins(LightIndicatorPlugin)
-        //     .add_plugins(LightUiPlugin)
+        app.register_type::<BeamSourceAssets>();
+        app.load_resource::<BeamSourceAssets>();
         app.add_message::<BeamAction>();
         app.add_systems(
             Update,
@@ -42,27 +44,29 @@ impl Plugin for BeamControllerPlugin {
                 .after(preview_light_path)
                 .in_set(LevelSystems::Simulation),
         );
-        app.add_observer(
-            |_: On<ResetLevels>,
-             mut inventory: Single<&mut PlayerLightInventory, With<Lyra>>,
-             ldtk_level_param: LdtkLevelParam| {
-                let allowed_cols = ldtk_level_param
-                    .cur_level()
-                    .expect("Cur level should exist")
-                    .raw()
-                    .allowed_colors();
-                let old_color = inventory.current_color;
+        app.add_observer(reset_light_inventory);
+    }
+}
 
-                **inventory = PlayerLightInventory::new();
+pub fn reset_light_inventory(
+    _: On<ResetLevels>,
+    mut inventory: Single<&mut PlayerLightInventory, With<Lyra>>,
+    ldtk_level_param: LdtkLevelParam,
+) {
+    let allowed_cols = ldtk_level_param
+        .cur_level()
+        .expect("Cur level should exist")
+        .raw()
+        .allowed_colors();
+    let old_color = inventory.current_color;
 
-                // if the new level has the current color as an allowed color, preserve it
-                if let Some(color) = old_color {
-                    if allowed_cols[color] {
-                        inventory.current_color = old_color;
-                    }
-                }
-            },
-        );
+    **inventory = PlayerLightInventory::new();
+
+    // if the new level has the current color as an allowed color, preserve it
+    if let Some(color) = old_color {
+        if allowed_cols[color] {
+            inventory.current_color = old_color;
+        }
     }
 }
 
@@ -107,90 +111,13 @@ impl PlayerLightInventory {
     }
 }
 
-// #[derive(Component)]
-// pub struct AngleMarker;
-//
-// pub fn spawn_angle_indicator(
-//     mut commands: Commands,
-//     q_player: Query<Entity, With<PlayerMarker>>,
-//     q_angle: Query<Entity, With<AngleMarker>>,
-//     asset_server: Res<AssetServer>,
-// ) {
-//     let Ok(player) = q_player.get_single() else {
-//         return;
-//     };
-//
-//     if !q_angle.is_empty() {
-//         return;
-//     }
-//
-//     commands.entity(player).with_child((
-//         Sprite {
-//             image: asset_server.load("angle.png"),
-//             color: Color::srgba(1.0, 1.0, 1.0, 0.1),
-//             ..default()
-//         },
-//         AngleMarker,
-//         HIGHRES_LAYER,
-//     ));
-// }
-
-// #[derive(Component)]
-// pub struct AngleIncrementMarker;
-//
-// pub fn spawn_angle_increments_indicators(
-//     mut commands: Commands,
-//     q_player: Query<Entity, With<PlayerMarker>>,
-//     q_angle: Query<Entity, With<AngleIncrementMarker>>,
-//     asset_server: Res<AssetServer>,
-// ) {
-//     for i in 0..NUMINCREMENTS {
-//         let angle_increment = (2.0 * PI) / NUMINCREMENTS as f32;
-//         let Ok(player) = q_player.get_single() else {
-//             return;
-//         };
-//
-//         if !q_angle.is_empty() {
-//             return;
-//         }
-//
-//         commands.entity(player).with_child((
-//             Sprite {
-//                 image: asset_server.load("angle_increment.png"),
-//                 color: Color::srgba(1.0, 1.0, 1.0, 0.1),
-//                 ..default()
-//             },
-//             AngleIncrementMarker,
-//             Transform {
-//                 rotation: Quat::from_rotation_z(i as f32 * angle_increment),
-//                 ..default()
-//             },
-//             HIGHRES_LAYER,
-//         ));
-//     }
-// }
-//
-// pub fn despawn_angle_indicator(mut commands: Commands, q_angle: Query<Entity, With<AngleMarker>>) {
-//     for angle in q_angle.iter() {
-//         commands.entity(angle).despawn_recursive();
-//     }
-// }
-//
-// pub fn despawn_angle_increments_indicators(
-//     mut commands: Commands,
-//     q_angle: Query<Entity, With<AngleIncrementMarker>>,
-// ) {
-//     for angle in q_angle.iter() {
-//         commands.entity(angle).despawn_recursive();
-//     }
-// }
-//
 /// [`System`] to handle the keyboard presses corresponding to color switches.
 pub fn handle_color_switch(
     keys: Res<ButtonInput<KeyCode>>,
     mut ev_scroll: MessageReader<MouseWheel>,
     mut beam_actions: MessageWriter<BeamAction>,
     inventory: Single<&PlayerLightInventory, With<Lyra>>,
+    shard_modifs: Res<CrystalShardMods>,
     ldtk_level_param: LdtkLevelParam,
 ) {
     static COLOR_BINDS: [(KeyCode, LightColor); 4] = [
@@ -210,11 +137,17 @@ pub fn handle_color_switch(
         // Some(LightColor::Black) => 4,
     };
 
-    let allowed_colors = ldtk_level_param
+    let mut allowed_colors = ldtk_level_param
         .cur_level()
         .expect("Cur level should exist")
         .raw()
         .allowed_colors();
+
+    for (color, allowed) in shard_modifs.0.iter() {
+        if *allowed {
+            allowed_colors[color] = true;
+        }
+    }
 
     for scroll in ev_scroll.read() {
         let sign = -(scroll.y.signum() as i32);
@@ -266,12 +199,32 @@ pub fn handle_shoot_inputs(
     }
 }
 
+#[derive(Resource, Reflect, Asset, Clone)]
+#[reflect(Resource)]
+pub struct BeamSourceAssets {
+    #[dependency]
+    compass: Handle<Image>,
+    #[dependency]
+    compass_gold: Handle<Image>,
+}
+
+impl FromWorld for BeamSourceAssets {
+    fn from_world(world: &mut World) -> Self {
+        let asset_server = world.resource::<AssetServer>();
+
+        Self {
+            compass: asset_server.load("light/compass.png"),
+            compass_gold: asset_server.load("light/compass-gold.png"),
+        }
+    }
+}
+
 pub fn process_beam_actions(
     mut commands: Commands,
     mut beam_actions: MessageReader<BeamAction>,
     lyra: Single<(&Transform, &mut PlayerLightInventory), With<Lyra>>,
     cursor: Single<&CursorWorldCoords>,
-    asset_server: Res<AssetServer>,
+    beam_assets: Res<BeamSourceAssets>,
 ) {
     let (player_transform, mut player_inventory) = lyra.into_inner();
     for action in beam_actions.read() {
@@ -296,10 +249,9 @@ pub fn process_beam_actions(
                 // NOTE: hardcode here should be okay
                 let mut source_transform = Transform::from_translation(ray_pos.extend(3.));
                 source_transform.rotate_z(ray_dir.to_angle());
-                let mut source_sprite = Sprite::from_image(asset_server.load("light/compass.png"));
+                let mut source_sprite = Sprite::from_image(beam_assets.compass.clone());
                 source_sprite.color = Color::srgb(2.0, 2.0, 2.0);
-                let mut outer_source_sprite =
-                    Sprite::from_image(asset_server.load("light/compass-gold.png"));
+                let mut outer_source_sprite = Sprite::from_image(beam_assets.compass_gold.clone());
                 outer_source_sprite.color = shoot_color.light_beam_color().mix(&Color::BLACK, 0.4);
 
                 commands

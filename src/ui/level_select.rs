@@ -182,6 +182,8 @@ fn spawn_level_select(
             flex_direction: FlexDirection::Column,
             align_items: AlignItems::Center,
             padding: UiRect::all(Val::Px(96.0)),
+            column_gap: Val::Px(32.),
+            row_gap: Val::Px(32.),
             ..default()
         })
         .insert(BackgroundColor(Color::BLACK))
@@ -192,18 +194,33 @@ fn spawn_level_select(
         .insert(ui_font.text_font().with_font_size(UiFontSize::HEADER))
         .insert(ChildOf(container));
 
+    let center_container = commands
+        .spawn(Node {
+            width: Val::Percent(100.),
+            height: Val::Percent(100.),
+            display: Display::Flex,
+            flex_direction: FlexDirection::Column,
+            justify_content: JustifyContent::Center,
+            align_items: AlignItems::Center,
+            column_gap: Val::Px(32.),
+            row_gap: Val::Px(32.),
+            ..default()
+        })
+        .insert(ChildOf(container))
+        .id();
+
     let level_container = commands
         .spawn(Node {
             width: Val::Percent(100.),
-            padding: UiRect::all(Val::Px(16.0)),
             height: Val::Auto,
+            flex_grow: 0.,
             flex_direction: FlexDirection::Row,
             flex_wrap: FlexWrap::Wrap,
             justify_content: JustifyContent::Center,
             align_items: AlignItems::Center,
             ..default()
         })
-        .insert(ChildOf(container))
+        .insert(ChildOf(center_container))
         .id();
 
     for (
@@ -255,24 +272,41 @@ fn spawn_level_select(
         .spawn(Node {
             width: Val::Percent(100.),
             height: Val::Percent(100.),
+            flex_grow: 3.,
             justify_content: JustifyContent::Center,
             align_items: AlignItems::Center,
             ..default()
         })
-        .insert(ChildOf(container))
+        .insert(ChildOf(center_container))
         .id();
 
     let level_preview = commands
         .spawn(LevelPreviewMarker)
-        .insert(Node::default())
+        .insert(Node {
+            width: Val::Percent(100.),
+            height: Val::Percent(100.),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
+            position_type: PositionType::Relative,
+            ..default()
+        })
         .insert(ChildOf(level_preview_container))
         .id();
 
     commands
         .spawn(Node {
-            width: Val::Percent(50.),
+            position_type: PositionType::Absolute,
+            align_items: AlignItems::Center,
+            top: Val::Percent(50.),
+            left: Val::Percent(50.),
+            height: Val::Percent(100.),
+            justify_content: JustifyContent::Center,
             ..default()
         })
+        .insert(UiTransform::from_translation(Val2::new(
+            Val::Percent(-50.),
+            Val::Percent(-50.),
+        )))
         .insert(ChildOf(level_preview))
         .insert(LevelPreviewLockedMarker)
         .insert(
@@ -516,9 +550,8 @@ pub fn handle_level_selection(
                     commands.entity(level_preview_entity).insert((
                         image_node,
                         Node {
-                            width: Val::Percent(60.),
-                            height: Val::Auto,
-                            max_height: Val::Percent(50.),
+                            max_width: Val::Percent(100.),
+                            height: Val::Percent(100.),
                             aspect_ratio: Some(level_dims.x / level_dims.y),
                             ..default()
                         },

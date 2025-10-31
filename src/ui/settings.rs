@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::shared::UiState;
 use crate::sound::{BgmTrack, ChangeBgmEvent};
-use crate::ui::{UiButton, UiClick, UiFont};
+use crate::ui::{UiButton, UiClick, UiFont, UiFontSize};
 
 pub struct SettingsPlugin;
 
@@ -58,22 +58,22 @@ fn spawn_settings(mut commands: Commands, ui_font: Res<UiFont>) {
             display: Display::Flex,
             flex_direction: FlexDirection::Column,
             align_items: AlignItems::Center,
-            padding: UiRect::all(Val::Px(24.0)),
+            padding: UiRect::all(Val::Px(96.0)),
+            column_gap: Val::Px(32.),
+            row_gap: Val::Px(32.),
             ..default()
         })
         .insert(BackgroundColor(Color::BLACK))
-        .insert(Interaction::None)
         .id();
 
     commands
         .spawn(Text::new("Settings"))
-        .insert(ui_font.text_font().with_font_size(48.))
+        .insert(ui_font.text_font().with_font_size(UiFontSize::HEADER))
         .insert(ChildOf(container));
 
     commands
         .spawn(Node {
             width: Val::Percent(50.),
-            padding: UiRect::all(Val::Px(32.0)),
             height: Val::Percent(100.0),
             row_gap: Val::Px(6.),
             flex_direction: FlexDirection::Column,
@@ -82,7 +82,7 @@ fn spawn_settings(mut commands: Commands, ui_font: Res<UiFont>) {
         .insert(ChildOf(container))
         .with_child((
             Node {
-                margin: UiRect::vertical(Val::Px(24.)),
+                margin: UiRect::bottom(Val::Px(24.)),
                 ..default()
             },
             Text::new("Controls (Fixed)"),
@@ -94,7 +94,7 @@ fn spawn_settings(mut commands: Commands, ui_font: Res<UiFont>) {
         .spawn(Text::new("Back"))
         .insert(Button)
         .insert(UiButton)
-        .insert(ui_font.text_font().with_font_size(36.))
+        .insert(ui_font.text_font().with_font_size(UiFontSize::BUTTON))
         .insert(ChildOf(container))
         .observe(
             |_: On<UiClick>, mut next_ui_state: ResMut<NextState<UiState>>| {
