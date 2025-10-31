@@ -85,7 +85,7 @@ pub fn kill_player_on_danger(
     mut commands: Commands,
     q_danger_box: Query<&DangerBox>,
 ) {
-    if !q_danger_box.get(event.collider2).is_ok() {
+    if q_danger_box.get(event.collider2).is_err() {
         return;
     }
     commands.trigger(KillPlayer);

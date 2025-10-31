@@ -134,11 +134,8 @@ pub fn trigger_interaction_events(
     q_interactions: Query<(Entity, &Interaction), Changed<Interaction>>,
 ) {
     for (entity, interaction) in q_interactions.iter() {
-        match *interaction {
-            Interaction::Pressed => {
-                commands.trigger(UiClick { entity });
-            }
-            _ => {}
+        if *interaction == Interaction::Pressed {
+            commands.trigger(UiClick { entity });
         }
     }
 }

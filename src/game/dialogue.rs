@@ -134,6 +134,7 @@ pub fn handle_start_dialogue(
         .insert(DialogueText);
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn do_dialogue(
     mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,
@@ -145,10 +146,10 @@ pub fn do_dialogue(
     mut image: Single<&mut ImageNode, With<DialogueImage>>,
 ) {
     let dialogue_res = dialogue_res.into_inner();
-    if !dialogue_res.timer.is_some() {
+    if dialogue_res.timer.is_none() {
         return;
     }
-    if !dialogue_res.dialogue.is_some() {
+    if dialogue_res.dialogue.is_none() {
         return;
     }
     let dialogue = dialogue_res.dialogue.as_ref().unwrap();

@@ -135,6 +135,7 @@ pub fn flip_player_direction(
     }
 }
 
+#[allow(clippy::type_complexity)]
 pub fn set_animation(
     player: Single<
         (

@@ -80,6 +80,7 @@ pub enum PassThroughOneWayPlatform {
     Never,
 }
 
+#[allow(clippy::type_complexity)]
 // Define a custom `SystemParam` for our collision hooks.
 // It can have read-only access to queries, resources, and other system parameters.
 #[derive(SystemParam)]
