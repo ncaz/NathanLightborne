@@ -71,6 +71,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./wasm
+          cname: play.lightborne.dev
 
   # Build for Linux
   release-linux:
