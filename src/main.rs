@@ -66,7 +66,6 @@ fn main() {
     app.add_plugins(UiPlugin);
     app.add_plugins(GamePlugin);
     app.insert_state(GameState::Loading);
-    app.insert_resource(UiScale(1.5));
     app.add_sub_state::<UiState>();
     app.add_sub_state::<PlayState>();
     app.add_sub_state::<AnimationState>();
