@@ -12,7 +12,7 @@ use crate::{
     ui::tooltip::TooltipSpawner,
 };
 
-const PLAYER_STUCK_TOOLTIP_DELAY_SECS: u64 = 5;
+const PLAYER_STUCK_TOOLTIP_DELAY_SECS: u64 = 8;
 
 pub struct HintRestartPlugin;
 

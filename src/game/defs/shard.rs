@@ -270,7 +270,7 @@ pub fn on_shard_zoom_in_finished(
         LightColor::Green => "Oh good, the first piece of the Divine Prism. This should let me shoot a bouncing light beam.",
         LightColor::Blue => "Blue light, formerly known as the light of harmony. Could this one shoot through the active blue crystals above me?",
         LightColor::White => "A different feeling than before... could this color have a special reflective properties?",
-        LightColor::Purple => "This one's even more powerful... I should be able to bounce this one more than once.",
+        LightColor::Purple => "This one's even more powerful... the purple light beam should bounce twice instead of once.",
     };
 
     commands.trigger(Dialogue {

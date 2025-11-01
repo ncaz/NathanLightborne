@@ -144,7 +144,7 @@ pub enum DialoguePortrait {
     Cruciera,
 }
 
-pub static LYRA_CRUCIERA_DIALOGUE: [(DialoguePortrait, &str); 11] = [
+pub static LYRA_CRUCIERA_DIALOGUE: [(DialoguePortrait, &str); 9] = [
     (DialoguePortrait::LyraNeutral, "Did you call for me, Lady Cruciera?"),
     (DialoguePortrait::Cruciera, "Indeed I have, young Lyra. I have one final job for you."),
     (DialoguePortrait::LyraHappy, "A job? What would you like me to do, Lady Cruciera?"),
@@ -154,8 +154,8 @@ pub static LYRA_CRUCIERA_DIALOGUE: [(DialoguePortrait, &str); 11] = [
     (DialoguePortrait::Cruciera, "Their greed has split the Prism into pieces, and such pieces have been scattered across their realm."),
     (DialoguePortrait::Cruciera, "The task falls upon you, young Lyra. Those who corrupted such a relic don't deserve to keep it."),
     (DialoguePortrait::LyraNeutral, "Very well, Lady Cruciera. I'll try my best to retrieve the pieces."),
-    (DialoguePortrait::Cruciera, "It won't be as easy as you think, but it will be a good chance for you to experience the full power of a goddess."),
-    (DialoguePortrait::Cruciera, "The prism is strong, yet volatile. Harness its powers well and pass its trials - that is the only way you will understand the true meaning of responsibility."),
+    // (DialoguePortrait::Cruciera, "It won't be as easy as you think, but it will be a good chance for you to experience the full power of a goddess."),
+    // (DialoguePortrait::Cruciera, "The prism is strong, yet volatile. Harness its powers well and pass its trials - that is the only way you will understand the true meaning of responsibility."),
 ];
 
 pub fn start_dialogue(

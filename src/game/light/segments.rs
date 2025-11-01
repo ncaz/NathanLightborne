@@ -27,7 +27,7 @@ pub struct LightSegment {
 }
 
 #[derive(Resource, Deref, DerefMut, Default)]
-pub struct LightSegmentCache(HashMap<LightSegment, (Transform, Entity)>);
+pub struct LightSegmentCache(HashMap<LightSegment, (Transform, Entity, Entity)>);
 
 /// [`Bundle`] used in the initialization of the [`LightSegmentCache`] to spawn segment entities.
 #[derive(Bundle, Debug, Clone, Default)]
@@ -356,7 +356,7 @@ pub fn simulate_light_sources(
                 index: i,
             };
 
-            let entity = match segment_cache.get(&segment) {
+            let (entity, light_entity) = match segment_cache.get(&segment) {
                 None => {
                     let seg = commands
                         .spawn(transform)
@@ -371,12 +371,16 @@ pub fn simulate_light_sources(
                             transform,
                         })
                         .insert(HIGHRES_LAYER)
-                        .with_child(LineLight2d {
+                        .id();
+
+                    let light = commands
+                        .spawn(LineLight2d {
                             color: source.color.lighting_color().extend(1.0),
                             half_length: scale.x / 2.0,
                             radius: 20.0,
                             volumetric_intensity: 0.04,
                         })
+                        .insert(ChildOf(seg))
                         .id();
 
                     if source.color == LightColor::White {
@@ -390,17 +394,24 @@ pub fn simulate_light_sources(
                         ));
                     }
                     all_segments.remove(&segment);
-                    seg
+                    (seg, light)
                 }
-                Some((t, e)) => {
+                Some((t, e, le)) => {
                     all_segments.remove(&segment);
                     if *t == transform {
                         continue;
                     }
-                    commands.entity(*e).try_insert(transform).id()
+                    commands.entity(*le).try_insert(LineLight2d {
+                        color: source.color.lighting_color().extend(1.0),
+                        half_length: scale.x / 2.0,
+                        radius: 20.0,
+                        volumetric_intensity: 0.04,
+                    });
+                    commands.entity(*e).try_insert(transform);
+                    (*e, *le)
                 }
             };
-            segment_cache.insert(segment.clone(), (transform, entity));
+            segment_cache.insert(segment.clone(), (transform, entity, light_entity));
         }
     }
 

@@ -9,6 +9,7 @@ use crate::{
         defs::crystal::{CrystalColor, CrystalToggleEvent},
         light::{segments::simulate_light_sources, HitByLight, LightColor},
         lighting::LineLight2d,
+        particle::spark::SparkExplosionEvent,
         Layers, LevelSystems,
     },
     shared::ResetLevels,
@@ -201,11 +202,12 @@ pub fn reset_light_sensors(_: On<ResetLevels>, mut q_sensors: Query<&mut LightSe
 
 pub fn update_light_sensors(
     mut commands: Commands,
-    mut q_sensors: Query<(Entity, &mut LightSensor, &mut Sprite)>,
+    mut q_sensors: Query<(Entity, &mut LightSensor, &mut Sprite, &GlobalTransform)>,
     asset_server: Res<AssetServer>,
     time: Res<Time>,
+    mut ev_spark_explosion: MessageWriter<SparkExplosionEvent>,
 ) {
-    for (entity, mut sensor, mut sprite) in q_sensors.iter_mut() {
+    for (entity, mut sensor, mut sprite, transform) in q_sensors.iter_mut() {
         let was_hit = sensor.is_hit();
 
         if was_hit {
@@ -231,6 +233,10 @@ pub fn update_light_sensors(
                 AudioPlayer::new(asset_server.load("sfx/button.wav")),
                 PlaybackSettings::DESPAWN,
             ));
+            ev_spark_explosion.write(SparkExplosionEvent {
+                pos: transform.translation().xy(),
+                color: ButtonColor::from(sensor.toggle_color),
+            });
         };
 
         if sensor.meter > 1.0 {

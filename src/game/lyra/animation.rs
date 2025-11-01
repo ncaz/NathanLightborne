@@ -157,7 +157,7 @@ pub fn set_animation(
         PlayerAnimationType::Fall
     } else if is_grounded && !*was_grounded {
         PlayerAnimationType::Land
-    } else if is_grounded && lin_vel.0.x.abs() > 0.05 {
+    } else if is_grounded && lin_vel.0.x.abs() > 0.01 {
         PlayerAnimationType::Walk
     } else if is_grounded && movement.crouched {
         PlayerAnimationType::Crouch

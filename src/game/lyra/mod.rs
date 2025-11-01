@@ -132,7 +132,7 @@ pub fn spawn_lyra(
         .insert(MovementInfo::default())
         .insert(
             ShapeCaster::new(
-                Collider::rectangle(8.0, 0.5),
+                Collider::rectangle(11.8, 0.5),
                 Vec2::new(0., -9.75),
                 0.0,
                 Dir2::NEG_Y,
@@ -197,7 +197,7 @@ pub fn spawn_lyra_cam(
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
 ) {
-    let (lyra_image, lyra_projection) = build_render_target(32, 32);
+    let (lyra_image, lyra_projection) = build_render_target(36, 36);
     let lyra_handle = images.add(lyra_image);
 
     // NOTE: lyra cam doesn't have pixelperfectcam because childing it to lyra makes it snap
