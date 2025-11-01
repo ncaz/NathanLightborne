@@ -2,7 +2,7 @@
 use bevy::dev_tools::fps_overlay::{FpsOverlayConfig, FpsOverlayPlugin, FrameTimeGraphConfig};
 
 use bevy::prelude::*;
-use bevy::window::PresentMode;
+use bevy::window::{PresentMode, WindowMode};
 use bevy::{asset::AssetMetaCheck, diagnostic::LogDiagnosticsPlugin};
 
 use camera::{CameraPlugin, HIGHRES_LAYER};
@@ -39,6 +39,7 @@ fn main() {
                     present_mode: PresentMode::AutoNoVsync,
                     canvas: Some("#bevy-container".into()),
                     fit_canvas_to_parent: true,
+                    mode: WindowMode::BorderlessFullscreen(MonitorSelection::Current),
                     prevent_default_event_handling: false,
                     ..default()
                 }),

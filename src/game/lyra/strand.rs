@@ -21,19 +21,13 @@ pub struct LyraStrandPlugin;
 
 impl Plugin for LyraStrandPlugin {
     fn build(&self, app: &mut App) {
-        // app.add_systems(
-        //     Update,
-        //     // LOL to reset strand on reset just simulate them a bunch
-        //     (update_strand, update_strand, update_strand, update_strand)
-        //         .after(reset_player_on_kill)
-        //         .in_set(LevelSystems::Reset),
-        // );
         app.register_type::<HairClothAssets>();
         app.load_resource::<HairClothAssets>();
         app.add_systems(
             OnEnter(GameState::InGame),
             add_lyra_hair_cloth.after(spawn_lyra),
         );
+        app.add_systems(OnExit(GameState::InGame), despawn_strands);
         app.add_systems(
             FixedUpdate,
             update_strand
@@ -347,5 +341,11 @@ pub fn update_player_strand_offsets(
         if sprite.flip_x {
             strand.offset.x *= -1.0;
         }
+    }
+}
+
+pub fn despawn_strands(mut commands: Commands, q_strands: Query<Entity, With<Strand>>) {
+    for strand in q_strands.iter() {
+        commands.entity(strand).try_despawn();
     }
 }

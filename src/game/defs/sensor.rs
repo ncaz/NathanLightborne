@@ -1,4 +1,4 @@
-use avian2d::prelude::{Collider, CollisionLayers};
+use avian2d::prelude::{Collider, CollisionLayers, Friction};
 use bevy::{prelude::*, time::Stopwatch};
 use bevy_ecs_ldtk::prelude::*;
 use enum_map::EnumMap;
@@ -171,6 +171,7 @@ pub fn hydrate_sensor(
             Layers::LightSensor,
             [Layers::LightRay, Layers::WhiteRay, Layers::BlueRay],
         ))
+        .insert(Friction::new(0.))
         .insert(center_sprite.clone())
         .with_children(|sensor| {
             sensor.spawn(inner_sprite.clone());

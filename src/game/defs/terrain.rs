@@ -42,6 +42,7 @@ impl MergedTile for Terrain {
             .insert(Collider::rectangle(extent.x, extent.y))
             .insert(Occluder2d::new(extent.x / 2., extent.y / 2.))
             .insert(DustSurface::Wall)
+            .insert(Friction::new(0.))
             .insert(CollisionLayers::new(
                 Layers::Terrain,
                 [Layers::PlayerCollider, Layers::LightRay],

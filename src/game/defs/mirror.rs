@@ -24,6 +24,7 @@ pub fn adjust_mirrors(event: On<Add, Mirror>, mut commands: Commands) {
     commands
         .entity(event.entity)
         .insert(Collider::rectangle(8.0, 8.0))
+        .insert(Friction::new(0.))
         .insert(CollisionLayers::new(
             Layers::Terrain,
             [

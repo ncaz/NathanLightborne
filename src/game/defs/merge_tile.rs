@@ -8,12 +8,8 @@ use std::{
 use crate::ldtk::LdtkLevelParam;
 
 pub trait MergedTile {
-    /// The comparison data used to compute if two tiles are mergeable or not
     type CompareData: PartialEq + Eq + Hash;
 
-    /// This function should spawn the merged tile's components using the given EntityCommands. The
-    /// given Entity commands refers to an entity that is a direct child of the level, not the
-    /// layer.
     fn bundle(
         commands: &mut EntityCommands,
         center: Vec2,
@@ -21,9 +17,104 @@ pub trait MergedTile {
         compare_data: &Self::CompareData,
     );
 
-    /// This function should return the compare data used to check merge-ability between entities
-    /// with the same component
     fn compare_data(&self) -> Self::CompareData;
+}
+
+#[derive(Clone, Eq, PartialEq, Debug, Default, Hash)]
+struct Plate {
+    left: i32,
+    right: i32,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct Rect {
+    left: i32,
+    right: i32,
+    top: i32,
+    bottom: i32,
+}
+
+fn build_rects_by_row(width: i32, height: i32, tiles: &HashSet<GridCoords>) -> Vec<Rect> {
+    let mut plate_stack: Vec<Vec<Plate>> = Vec::new();
+
+    for y in 0..height {
+        let mut row_plates: Vec<Plate> = Vec::new();
+        let mut plate_start: Option<i32> = None;
+
+        // +1 so we "close" any plate that hits the right edge
+        for x in 0..(width + 1) {
+            match (plate_start, tiles.contains(&GridCoords { x, y })) {
+                (Some(s), false) => {
+                    row_plates.push(Plate {
+                        left: s,
+                        right: x - 1,
+                    });
+                    plate_start = None;
+                }
+                (None, true) => plate_start = Some(x),
+                _ => {}
+            }
+        }
+        plate_stack.push(row_plates);
+    }
+
+    // extra empty row so we "close" plates that hit the top edge
+    plate_stack.push(Vec::new());
+
+    let mut rect_builder: HashMap<Plate, Rect> = HashMap::new();
+    let mut prev_row: Vec<Plate> = Vec::new();
+    let mut rects: Vec<Rect> = Vec::new();
+
+    for (y, current_row) in plate_stack.into_iter().enumerate() {
+        for prev_plate in &prev_row {
+            if !current_row.contains(prev_plate) {
+                if let Some(rect) = rect_builder.remove(prev_plate) {
+                    rects.push(rect);
+                }
+            }
+        }
+
+        for plate in &current_row {
+            rect_builder
+                .entry(plate.clone())
+                .and_modify(|r| r.top += 1)
+                .or_insert(Rect {
+                    bottom: y as i32,
+                    top: y as i32,
+                    left: plate.left,
+                    right: plate.right,
+                });
+        }
+
+        prev_row = current_row;
+    }
+
+    rects
+}
+
+fn transpose_coords_set(tiles: &HashSet<GridCoords>) -> HashSet<GridCoords> {
+    tiles
+        .iter()
+        .map(|&GridCoords { x, y }| GridCoords { x: y, y: x })
+        .collect()
+}
+
+fn build_rects_by_column(width: i32, height: i32, tiles: &HashSet<GridCoords>) -> Vec<Rect> {
+    let tset = transpose_coords_set(tiles);
+    let mut rects_t = build_rects_by_row(height, width, &tset);
+
+    for r in &mut rects_t {
+        let left = r.bottom;
+        let right = r.top;
+        let bottom = r.left;
+        let top = r.right;
+        r.left = left;
+        r.right = right;
+        r.bottom = bottom;
+        r.top = top;
+    }
+
+    rects_t
 }
 
 pub fn spawn_merged_tiles<Tile>(
@@ -37,18 +128,6 @@ pub fn spawn_merged_tiles<Tile>(
 {
     if tile_query.is_empty() {
         return;
-    }
-    #[derive(Clone, Eq, PartialEq, Debug, Default, Hash)]
-    struct Plate {
-        left: i32,
-        right: i32,
-    }
-
-    struct Rect {
-        left: i32,
-        right: i32,
-        top: i32,
-        bottom: i32,
     }
 
     let mut level_to_tile_locations: HashMap<
@@ -83,73 +162,40 @@ pub fn spawn_merged_tiles<Tile>(
             ..
         } = level.layer_instances()[0];
 
+        let grid = grid_size as f32;
+
         for (compare_data, tile_coords) in level_tiles.iter() {
-            let mut plate_stack: Vec<Vec<Plate>> = Vec::new();
-
-            for y in 0..height {
-                let mut row_plates: Vec<Plate> = Vec::new();
-                let mut plate_start = None;
-
-                // + 1 to the width so the algorithm "terminates" plates that touch the right edge
-                for x in 0..width + 1 {
-                    match (plate_start, tile_coords.contains(&GridCoords { x, y })) {
-                        (Some(s), false) => {
-                            row_plates.push(Plate {
-                                left: s,
-                                right: x - 1,
-                            });
-                            plate_start = None;
-                        }
-                        (None, true) => plate_start = Some(x),
-                        _ => (),
-                    }
-                }
-
-                plate_stack.push(row_plates);
-            }
-
-            // combine "plates" into rectangles across multiple rows
-            let mut rect_builder: HashMap<Plate, Rect> = HashMap::new();
-            let mut prev_row: Vec<Plate> = Vec::new();
-            let mut tile_rects: Vec<Rect> = Vec::new();
-
-            // an extra empty row so the algorithm "finishes" the rects that touch the top edge
-            plate_stack.push(Vec::new());
-
-            for (y, current_row) in plate_stack.into_iter().enumerate() {
-                for prev_plate in &prev_row {
-                    if !current_row.contains(prev_plate) {
-                        // remove the finished rect so that the same plate in the future starts a new rect
-                        if let Some(rect) = rect_builder.remove(prev_plate) {
-                            tile_rects.push(rect);
-                        }
-                    }
-                }
-                for plate in &current_row {
-                    rect_builder
-                        .entry(plate.clone())
-                        .and_modify(|e| e.top += 1)
-                        .or_insert(Rect {
-                            bottom: y as i32,
-                            top: y as i32,
-                            left: plate.left,
-                            right: plate.right,
-                        });
-                }
-                prev_row = current_row;
-            }
+            let rects_h = build_rects_by_row(width, height, tile_coords);
+            let rects_v = build_rects_by_column(width, height, tile_coords);
 
             commands.entity(level_entity).with_children(|level| {
-                for tile_rect in tile_rects {
+                for r in rects_h.iter() {
                     let extent = Vec2::new(
-                        (tile_rect.right as f32 - tile_rect.left as f32 + 1.) * grid_size as f32,
-                        (tile_rect.top as f32 - tile_rect.bottom as f32 + 1.) * grid_size as f32,
+                        (r.right - r.left + 1) as f32 * grid - 0.1,
+                        (r.top - r.bottom + 1) as f32 * grid,
                     )
                     .abs();
+
                     let center = Vec2::new(
-                        (tile_rect.left + tile_rect.right + 1) as f32 * grid_size as f32 / 2.,
-                        (tile_rect.bottom + tile_rect.top + 1) as f32 * grid_size as f32 / 2.,
+                        (r.left + r.right + 1) as f32 * grid / 2.0,
+                        (r.bottom + r.top + 1) as f32 * grid / 2.0,
                     );
+
+                    Tile::bundle(&mut level.spawn_empty(), center, extent, compare_data);
+                }
+                //cover gaps because sadge
+                for r in rects_v.iter() {
+                    let extent = Vec2::new(
+                        (r.right - r.left + 1) as f32 * grid,
+                        (r.top - r.bottom + 1) as f32 * grid - 0.1,
+                    )
+                    .abs();
+
+                    let center = Vec2::new(
+                        (r.left + r.right + 1) as f32 * grid / 2.0,
+                        (r.bottom + r.top + 1) as f32 * grid / 2.0,
+                    );
+
                     Tile::bundle(&mut level.spawn_empty(), center, extent, compare_data);
                 }
             });

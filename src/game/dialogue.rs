@@ -122,8 +122,8 @@ pub fn handle_start_dialogue(
             margin: UiRect::new(
                 Val::Percent(20.),
                 Val::Percent(20.),
-                Val::Percent(7.5),
-                Val::Percent(7.5),
+                Val::Percent(10.),
+                Val::Percent(5.),
             ),
             ..default()
         })

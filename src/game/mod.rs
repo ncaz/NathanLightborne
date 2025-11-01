@@ -49,7 +49,7 @@ impl Plugin for GamePlugin {
                 .with_length_unit(8.)
                 .with_collision_hooks::<OneWayPlatformHooks>(),
         );
-        // app.add_plugins(PhysicsDebugPlugin);
+        app.add_plugins(PhysicsDebugPlugin);
         // app.add_plugins(PhysicsDiagnosticsPlugin);
         app.add_plugins(CursorCoordsPlugin);
         app.add_plugins(LevelBgmPlugin);
@@ -64,6 +64,7 @@ impl Plugin for GamePlugin {
         app.add_plugins(LightBeamPlugin);
         app.add_plugins(DeferredLightingPlugin);
         app.add_plugins(DialoguePlugin);
+        app.insert_resource(Gravity::ZERO);
         app.configure_sets(
             PreUpdate,
             LevelSystems::Processing

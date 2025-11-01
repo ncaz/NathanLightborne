@@ -122,12 +122,12 @@ pub fn spawn_lyra(
             [Layers::Terrain, Layers::BlueCrystal],
         ))
         .insert(CharacterController)
-        .insert(RigidBody::Kinematic)
+        .insert(RigidBody::Dynamic)
         .insert(TransformInterpolation)
         .insert(Collider::compound(vec![(
             Vec2::new(0.0, -2.0),
             Rotation::default(),
-            Collider::rectangle(12.0, 16.0),
+            Collider::rectangle(12.0, 16.0), // 12 x 16
         )]))
         .insert(MovementInfo::default())
         .insert(
@@ -143,6 +143,16 @@ pub fn spawn_lyra(
                 SpatialQueryFilter::default().with_mask([Layers::Terrain, Layers::BlueCrystal]),
             ),
         )
+        .insert(LockedAxes::ROTATION_LOCKED)
+        .insert(Friction {
+            dynamic_coefficient: 0.0,
+            static_coefficient: 0.0,
+            combine_rule: CoefficientCombine::Min,
+        })
+        .insert(Restitution {
+            coefficient: 0.0,
+            combine_rule: CoefficientCombine::Min,
+        })
         .insert(CachedLinearVelocity(Vec2::ZERO))
         .insert(PlayerLightInventory::new())
         .insert(PlayerAnimationType::Idle)

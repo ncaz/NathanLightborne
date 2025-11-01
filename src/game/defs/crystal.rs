@@ -110,6 +110,7 @@ impl MergedTile for Crystal {
             .insert(Collider::rectangle(extent.x, extent.y))
             .insert(Occluder2d::new(extent.x / 2., extent.y / 2.))
             .insert(Transform::from_xyz(center.x, center.y, 0.))
+            .insert(Friction::new(0.))
             .insert(CrystalGroup(Crystal {
                 init_active: compare_data.1,
                 color: compare_data.0,

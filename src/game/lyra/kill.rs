@@ -119,6 +119,7 @@ pub fn start_kill_animation(
                 *transform = Transform::from_translation(lyra_transform.extend(0.));
                 *position = Position(lyra_transform);
                 info!("Moving lyra to {}", lyra_transform);
+
                 commands.trigger(SnapToLyra);
             },
         )

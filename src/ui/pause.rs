@@ -43,24 +43,33 @@ impl FromWorld for PauseAssets {
 #[derive(Component)]
 pub struct PauseMarker;
 
-fn spawn_pause(mut commands: Commands, ui_font: Res<UiFont>, pause_assets: Res<PauseAssets>) {
+fn spawn_pause(mut commands: Commands, ui_font: Res<UiFont>, _pause_assets: Res<PauseAssets>) {
     let container = commands
         .spawn(PauseMarker)
         .insert(Node {
-            width: Val::Vw(60.),
-            height: Val::Vh(60.),
-            margin: UiRect::new(Val::Vw(20.), Val::Vw(20.), Val::Vh(20.), Val::Vh(20.)),
+            width: Val::Auto,
+            height: Val::Auto,
+            // margin: UiRect::new(Val::Vw(20.), Val::Vw(20.), Val::Vh(20.), Val::Vh(20.)),
             justify_content: JustifyContent::SpaceBetween,
             display: Display::Flex,
             flex_direction: FlexDirection::Column,
+            position_type: PositionType::Absolute,
             align_items: AlignItems::Center,
-            padding: UiRect::all(Val::Px(96.0)),
+            padding: UiRect::new(Val::Px(120.), Val::Px(120.), Val::Px(96.), Val::Px(96.)),
             column_gap: Val::Px(32.),
-            row_gap: Val::Px(32.),
+            row_gap: Val::Px(96.),
+            top: Val::Percent(50.),
+            left: Val::Percent(50.),
+            border: UiRect::all(Val::Px(2.)),
             ..default()
         })
-        .insert(ImageNode::from(pause_assets.bg.clone()).with_mode(NodeImageMode::Stretch))
-        // .insert(BackgroundColor(Color::BLACK.with_alpha(0.2)))
+        .insert(BorderColor::all(Color::WHITE))
+        .insert(UiTransform::from_translation(Val2::new(
+            Val::Percent(-50.),
+            Val::Percent(-50.),
+        )))
+        // .insert(ImageNode::from(pause_assets.bg.clone()).with_mode(NodeImageMode::Stretch))
+        .insert(BackgroundColor(Color::BLACK.with_alpha(0.5)))
         .id();
 
     commands

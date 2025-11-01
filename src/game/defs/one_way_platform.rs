@@ -52,6 +52,7 @@ impl MergedTile for OneWayMarker {
                 Rotation::default(),
                 Collider::rectangle(extent.x, 2.0),
             )]))
+            .insert(Friction::new(0.))
             .insert(CollisionLayers::new(
                 Layers::Terrain,
                 [
